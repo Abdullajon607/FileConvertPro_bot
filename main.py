@@ -5,15 +5,15 @@ from datetime import timedelta
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, CallbackQuery, FSInputFile
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 
 from config import load_config
 from db import DB
-from states import LangFlow, ConvertFlow, TranslitFlow, OCRFlow, PaymentFlow
+from states import LangFlow, ConvertFlow, TranslitFlow, PaymentFlow
 from keyboards import (
     kb_lang, kb_main, kb_translit_dir, kb_pay_kind,
-    kb_premium_plans, kb_ocr_plans, kb_admin_payment
+    kb_premium_plans, kb_admin_payment
 )
 from i18n import t
 from utils import (
@@ -24,14 +24,13 @@ from utils import (
 
 from services.translit import latin_to_cyr, cyr_to_latin
 from services.convert import pdf_to_docx, docx_to_pdf, text_to_docx, text_to_pptx, image_to_docx_embed
-from services.ocr import configure_tesseract, ocr_image
 
 
 cfg = load_config()
 db = DB(cfg.db_path)
 logger = setup_logger(cfg.log_dir)
 
-GLOBAL_SEM = asyncio.Semaphore(2)
+GLOBAL_SEM = asyncio.Semaphore(10) # Bir vaqtda 10 ta og'ir jarayon ishlashi mumkin
 USER_LOCKS: dict[int, asyncio.Lock] = {}
 
 def ulock(uid: int) -> asyncio.Lock:
@@ -44,7 +43,7 @@ async def run_heavy(uid: int, coro_fn):
         async with GLOBAL_SEM:
             return await coro_fn()
 
-async def download_url(url: str, dest_path: str, timeout=60):
+async def download_url(url: str, dest_path: str, timeout=300):
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as session:
         async with session.get(url) as resp:
             resp.raise_for_status()
@@ -56,6 +55,8 @@ async def download_url(url: str, dest_path: str, timeout=60):
                     f.write(chunk)
 
 async def is_premium(user_id: int) -> tuple[bool, str | None]:
+    if user_id in cfg.admin_ids:
+        return (True, "Admin 👑 (Cheksiz)")
     pu = await db.get_premium_until(user_id)
     if not pu:
         return (False, None)
@@ -95,14 +96,14 @@ async def get_file_from_message(m: Message) -> tuple[str | None, str | None]:
             return (None, "too_big")
         ext = safe_ext(m.document.file_name).lstrip(".") or "bin"
         p = os.path.join(tmp, rand_name("in", ext))
-        f = await m.bot.get_file(m.document.file_id)
-        await m.bot.download_file(f.file_path, p)
+        f = await m.bot.get_file(m.document.file_id, request_timeout=300)
+        await m.bot.download_file(f.file_path, p, timeout=300)
         return (p, "file")
 
     if m.photo:
         p = os.path.join(tmp, rand_name("in", "jpg"))
-        f = await m.bot.get_file(m.photo[-1].file_id)
-        await m.bot.download_file(f.file_path, p)
+        f = await m.bot.get_file(m.photo[-1].file_id, request_timeout=300)
+        await m.bot.download_file(f.file_path, p, timeout=300)
         return (p, "file")
 
     if m.text and is_url(m.text.strip()):
@@ -119,7 +120,6 @@ async def main():
     ensure_dir(cfg.tmp_dir)
     ensure_dir(cfg.log_dir)
     await db.init()
-    configure_tesseract(cfg.tesseract_path)
 
     bot = Bot(cfg.token)
     dp = Dispatcher()
@@ -129,6 +129,41 @@ async def main():
         await db.ensure_user(m.from_user.id)
         await state.set_state(LangFlow.choosing)
         await m.answer(t("uz", "choose_lang"), reply_markup=kb_lang())
+
+    @dp.message(Command("give_premium"))
+    async def cmd_give_premium(m: Message):
+        if m.from_user.id not in cfg.admin_ids:
+            return
+            
+        parts = m.text.split()
+        if len(parts) < 3:
+            await m.answer("⚠️ Format: /give_premium <user_id> <kun_soni>\nMasalan: /give_premium 6907296588 365")
+            return
+        
+        try:
+            target_id = int(parts[1])
+            days = int(parts[2])
+        except ValueError:
+            await m.answer("❌ Xato! user_id va kun soni faqat raqamlardan iborat bo'lishi kerak.")
+            return
+            
+        await db.ensure_user(target_id)
+        old = await db.get_premium_until(target_id)
+        base = utcnow()
+        if old:
+            old_dt = from_iso(old)
+            if old_dt > base:
+                base = old_dt
+        new_until = base + timedelta(days=days)
+        await db.set_premium_until(target_id, iso(new_until))
+        
+        await m.answer(f"✅ {target_id} idli foydalanuvchiga {days} kunlik premium berildi.\n⏰ Tugash vaqti: {iso(new_until)}")
+        
+        try:
+            user_lang = await db.get_lang(target_id)
+            await m.bot.send_message(target_id, t(user_lang, "approved_user", msg=f"Sizga {days} kunlik premium sovg'a qilindi!"))
+        except Exception:
+            pass
 
     @dp.callback_query(F.data.startswith("lang:"))
     async def set_lang(c: CallbackQuery, state: FSMContext):
@@ -214,23 +249,10 @@ async def main():
         )
         await c.answer()
 
-    @dp.callback_query(F.data == "pay:kind:ocr")
-    async def pay_kind_ocr(c: CallbackQuery, state: FSMContext):
-        lang = await db.get_lang(c.from_user.id)
-        await state.set_state(PaymentFlow.choosing_plan)
-        await c.message.answer(
-            t(lang, "pay_ocr_choose"),
-            reply_markup=kb_ocr_plans(cfg.price_ocr_1, cfg.price_ocr_10)
-        )
-        await c.answer()
 
     @dp.callback_query(F.data.startswith("pay:premium:"))
     async def pay_premium_choose(c: CallbackQuery, state: FSMContext):
         lang = await db.get_lang(c.from_user.id)
-        if await db.has_pending(c.from_user.id):
-            await c.message.answer(t(lang, "pending_exists"))
-            await c.answer()
-            return
         days = int(c.data.split(":")[-1])
         amount = cfg.price_7 if days == 7 else cfg.price_30 if days == 30 else cfg.price_365
         pid = await db.create_payment_premium(c.from_user.id, days, amount)
@@ -240,21 +262,6 @@ async def main():
         await c.message.answer(f"⭐ Premium: {days} kun\n💵 {amount} so‘m\n📎 Chek yuboring.")
         await c.answer()
 
-    @dp.callback_query(F.data.startswith("pay:ocr:"))
-    async def pay_ocr_choose(c: CallbackQuery, state: FSMContext):
-        lang = await db.get_lang(c.from_user.id)
-        if await db.has_pending(c.from_user.id):
-            await c.message.answer(t(lang, "pending_exists"))
-            await c.answer()
-            return
-        pack = int(c.data.split(":")[-1])
-        amount = cfg.price_ocr_1 if pack == 1 else cfg.price_ocr_10
-        pid = await db.create_payment_ocr(c.from_user.id, pack, amount)
-        await state.set_state(PaymentFlow.awaiting_proof)
-        await state.update_data(payment_id=pid)
-        await c.message.answer(t(lang, "pay_info", card=cfg.card_number, owner=cfg.card_owner))
-        await c.message.answer(f"🧠 OCR kredit: {pack} ta\n💵 {amount} so‘m\n📎 Chek yuboring.")
-        await c.answer()
 
     @dp.message(PaymentFlow.awaiting_proof)
     async def payment_proof(m: Message, state: FSMContext):
@@ -335,9 +342,6 @@ async def main():
                 new_until = base + timedelta(days=int(plan_days))
                 await db.set_premium_until(user_id, iso(new_until))
                 msg = f"Premium {plan_days} kun. Until: {iso(new_until)}"
-            else:
-                await db.add_ocr_credits(user_id, int(ocr_credits))
-                msg = f"OCR kredit +{ocr_credits} ta"
             user_lang = await db.get_lang(user_id)
             await c.bot.send_message(user_id, t(user_lang, "approved_user", msg=msg))
             await c.answer("Approved")
@@ -356,20 +360,8 @@ async def main():
         uid = c.from_user.id
         lang = await db.get_lang(uid)
         action = c.data.split(":", 1)[1]
+        is_admin = uid in cfg.admin_ids
 
-        if action == "ocr2docx":
-            credits = await db.get_ocr_credits(uid)
-            await c.message.answer(t(lang, "ocr_credits", n=credits))
-            if credits <= 0:
-                await c.message.answer(t(lang, "ocr_need", p1=cfg.price_ocr_1, p10=cfg.price_ocr_10))
-                await c.message.answer(t(lang, "pay_choose"), reply_markup=kb_pay_kind(lang))
-                await c.answer()
-                return
-            await state.clear()
-            await state.set_state(OCRFlow.awaiting_image)
-            await c.message.answer(t(lang, "send_file"))
-            await c.answer()
-            return
 
         prem, until = await is_premium(uid)
         if not prem and not await can_free(uid, "convert"):
@@ -421,7 +413,7 @@ async def main():
 
         try:
             out_path = await run_heavy(uid, job)
-            await m.answer_document(_sendable(out_path))
+            await m.answer_document(_sendable(out_path), request_timeout=300)
             await m.answer(t(lang, "done"))
             if not prem:
                 await mark_used(uid, "convert")
@@ -476,7 +468,7 @@ async def main():
 
         try:
             out_path = await run_heavy(uid, job)
-            await m.answer_document(_sendable(out_path))
+            await m.answer_document(_sendable(out_path), request_timeout=300)
             await m.answer(t(lang, "done"))
             if not prem:
                 await mark_used(uid, "convert")
@@ -486,59 +478,6 @@ async def main():
         finally:
             await state.clear()
 
-    @dp.message(OCRFlow.awaiting_image)
-    async def do_ocr(m: Message, state: FSMContext):
-        uid = m.from_user.id
-        lang = await db.get_lang(uid)
-
-        credits = await db.get_ocr_credits(uid)
-        if credits <= 0:
-            await m.answer(t(lang, "ocr_need", p1=cfg.price_ocr_1, p10=cfg.price_ocr_10))
-            await m.answer(t(lang, "pay_choose"), reply_markup=kb_pay_kind(lang))
-            await state.clear()
-            return
-
-        in_path, kind = await get_file_from_message(m)
-        if kind == "too_big":
-            await m.answer(t(lang, "too_big", mb=cfg.max_file_mb))
-            return
-        if not in_path:
-            await m.answer(t(lang, "bad_input"))
-            return
-
-        ext = os.path.splitext(in_path)[1].lower()
-        if ext not in (".jpg", ".jpeg", ".png", ".webp", ".bmp"):
-            await m.answer("Rasm yuboring (JPG/PNG).")
-            return
-
-        if not cfg.tesseract_path or not os.path.exists(cfg.tesseract_path):
-            await m.answer(t(lang, "need_tess"))
-            await state.clear()
-            return
-
-        await m.answer(t(lang, "processing"))
-
-        async def job():
-            text = await asyncio.to_thread(ocr_image, in_path, lang)
-            out = os.path.join(cfg.tmp_dir, rand_name("ocr", "docx"))
-            await asyncio.to_thread(text_to_docx, text, out, "OCR Result")
-            return out
-
-        try:
-            out_path = await run_heavy(uid, job)
-            ok = await db.consume_ocr_credit(uid, 1)
-            if not ok:
-                await m.answer(t(lang, "ocr_need", p1=cfg.price_ocr_1, p10=cfg.price_ocr_10))
-                await state.clear()
-                return
-            await m.answer_document(_sendable(out_path))
-            credits2 = await db.get_ocr_credits(uid)
-            await m.answer(t(lang, "ocr_credits", n=credits2))
-        except Exception as e:
-            logger.info(f"ocr error: {human_err(e)}")
-            await m.answer(f"⚠️ OCR xatolik: {human_err(e)}")
-        finally:
-            await state.clear()
 
     await dp.start_polling(bot)
 
