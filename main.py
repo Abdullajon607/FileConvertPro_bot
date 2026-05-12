@@ -16,7 +16,8 @@ from db import DB
 from states import LangFlow, ConvertFlow, ImgConvertFlow, TranslitFlow, PaymentFlow, ContactAdminFlow
 from keyboards import (
     kb_lang, kb_main, kb_pay_kind,
-    kb_premium_plans, kb_admin_payment, kb_finish_images
+    kb_premium_plans, kb_admin_payment, kb_finish_images,
+    kb_text_confirmation
 )
 from i18n import t, get_all
 from utils import (

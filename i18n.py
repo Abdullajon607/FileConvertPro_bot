@@ -46,6 +46,7 @@ TEXT: Dict[str, Dict[str, str]] = {
     "text_received_confirm":"Matn qabul qilindi. Yana matn qo'shmoqchimisiz yoki konvertatsiya qilishni tasdiqlaysizmi?",
     "btn_confirm_text":"✅ Tasdiqlash",
     "btn_cancel_text_input":"❌ Bekor qilish",
+    "text_input_cancelled":"❌ Matn kiritish bekor qilindi.",
     "current_text_length":"Hozircha {length} ta belgi kiritildi.",
 
     "tr_choose":"Yo‘nalishni tanlang:",
@@ -96,6 +97,7 @@ TEXT: Dict[str, Dict[str, str]] = {
     "text_received_confirm":"Текст получен. Хотите добавить еще текст или подтвердить конвертацию?",
     "btn_confirm_text":"✅ Подтвердить",
     "btn_cancel_text_input":"❌ Отменить",
+    "text_input_cancelled":"❌ Ввод текста отменен.",
     "current_text_length":"Введено {length} символов.",
 
     "tr_choose":"Выберите направление:",
@@ -146,6 +148,7 @@ TEXT: Dict[str, Dict[str, str]] = {
     "text_received_confirm":"Text received. Do you want to add more text or confirm conversion?",
     "btn_confirm_text":"✅ Confirm",
     "btn_cancel_text_input":"❌ Cancel",
+    "text_input_cancelled":"❌ Text input cancelled.",
     "current_text_length":"{length} characters entered so far.",
 
     "tr_choose":"Choose direction:",

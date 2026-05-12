@@ -60,3 +60,9 @@ def kb_finish_images(lang: str):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=t(lang, "btn_finish_images"), callback_data="do:img2docx_finish")]
     ])
+
+def kb_text_confirmation(lang: str):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t(lang, "btn_confirm_text"), callback_data="text_convert:confirm")],
+        [InlineKeyboardButton(text=t(lang, "btn_cancel_text_input"), callback_data="text_convert:cancel")]
+    ])

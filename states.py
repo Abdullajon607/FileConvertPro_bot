@@ -6,6 +6,7 @@ class LangFlow(StatesGroup):
 class ConvertFlow(StatesGroup):
     awaiting_file = State()
     awaiting_text = State()
+    awaiting_text_confirmation = State()
 
 class ImgConvertFlow(StatesGroup):
     awaiting_image = State()
