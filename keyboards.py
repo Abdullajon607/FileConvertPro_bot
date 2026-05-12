@@ -1,4 +1,4 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from i18n import t
 
 def kb_lang():
@@ -11,32 +11,27 @@ def kb_lang():
     ])
 
 def kb_main(lang: str):
-    return InlineKeyboardMarkup(inline_keyboard=[
+    return ReplyKeyboardMarkup(keyboard=[
         [
-            InlineKeyboardButton(text=t(lang, "pdf2docx"), callback_data="do:pdf2docx"),
-            InlineKeyboardButton(text=t(lang, "docx2pdf"), callback_data="do:docx2pdf")
+            KeyboardButton(text=t(lang, "pdf2docx")),
+            KeyboardButton(text=t(lang, "docx2pdf"))
         ],
         [
-            InlineKeyboardButton(text=t(lang, "text2docx"), callback_data="do:text2docx"),
-            InlineKeyboardButton(text=t(lang, "text2pptx"), callback_data="do:text2pptx")
+            KeyboardButton(text=t(lang, "text2docx")),
+            KeyboardButton(text=t(lang, "text2pptx"))
         ],
         [
-            InlineKeyboardButton(text=t(lang, "img2docx"), callback_data="do:img2docx"),
-            InlineKeyboardButton(text=t(lang, "translit"), callback_data="menu:translit")
+            KeyboardButton(text=t(lang, "img2docx")),
+            KeyboardButton(text=t(lang, "translit"))
         ],
         [
-            InlineKeyboardButton(text=t(lang, "pay"), callback_data="menu:pay")
+            KeyboardButton(text=t(lang, "pay")),
+            KeyboardButton(text=t(lang, "profile"))
         ],
-    ])
-
-def kb_translit_dir(lang: str):
-    return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="🇺🇿 Kiril ➡️ Lotin", callback_data="tr:cl"),
-            InlineKeyboardButton(text="🇺🇿 Lotin ➡️ Kiril", callback_data="tr:lc")
+            KeyboardButton(text=t(lang, "contact_admin"))
         ],
-        [InlineKeyboardButton(text="🔙 Asosiy Menyu", callback_data="menu:back")],
-    ])
+    ], resize_keyboard=True)
 
 def kb_pay_kind(lang: str):
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -46,8 +41,9 @@ def kb_pay_kind(lang: str):
         [InlineKeyboardButton(text="🔙 Asosiy Menyu", callback_data="menu:back")],
     ])
 
-def kb_premium_plans(p7: int, p30: int, p365: int):
+def kb_premium_plans(p1: int, p7: int, p30: int, p365: int):
     return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"1 kun — {p1} so‘m", callback_data="pay:premium:1")],
         [InlineKeyboardButton(text=f"7 kun — {p7} so‘m", callback_data="pay:premium:7")],
         [InlineKeyboardButton(text=f"30 kun — {p30} so‘m", callback_data="pay:premium:30")],
         [InlineKeyboardButton(text=f"1 yil — {p365} so‘m", callback_data="pay:premium:365")],
@@ -58,4 +54,9 @@ def kb_admin_payment(pid: int):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Tasdiqlash", callback_data=f"admin:approve:{pid}")],
         [InlineKeyboardButton(text="❌ Rad etish", callback_data=f"admin:reject:{pid}")],
+    ])
+
+def kb_finish_images(lang: str):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t(lang, "btn_finish_images"), callback_data="do:img2docx_finish")]
     ])

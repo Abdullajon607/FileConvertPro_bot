@@ -27,8 +27,10 @@ def iso(dt: datetime) -> str:
 def from_iso(s: str) -> datetime:
     return datetime.fromisoformat(s)
 
-def today_str_local() -> str:
-    return datetime.now().date().isoformat()
+def week_str_local() -> str:
+    # Haftalik limit uchun joriy yil va hafta raqamini qaytaradi (Masalan: 2024-W43)
+    d = datetime.now().date()
+    return f"{d.year}-W{d.isocalendar()[1]:02d}"
 
 def rand_name(prefix: str, ext: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex}.{ext}"

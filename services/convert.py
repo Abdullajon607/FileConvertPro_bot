@@ -69,10 +69,12 @@ def text_to_pptx(text: str, out_pptx: str, title: str = "Generated Slides"):
 
     prs.save(out_pptx)
 
-def image_to_docx_embed(image_path: str, out_docx: str, title: str = "Scan"):
-    if not os.path.exists(image_path):
-        raise RuntimeError("Rasm topilmadi.")
+def images_to_docx_embed(image_paths: list[str], out_docx: str, title: str = "Scan"):
+    if not image_paths:
+        raise RuntimeError("Rasmlar yo'q.")
     doc = Document()
     doc.add_heading(title, level=1)
-    doc.add_picture(image_path, width=Inches(6.0))
+    for img_p in image_paths:
+        if os.path.exists(img_p):
+            doc.add_picture(img_p, width=Inches(6.0))
     doc.save(out_docx)

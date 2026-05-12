@@ -20,6 +20,7 @@ class Config:
     card_number: str
     card_owner: str
 
+    price_1: int
     price_7: int
     price_30: int
     price_365: int
@@ -47,6 +48,7 @@ def load_config() -> Config:
         card_number=os.getenv("CARD_NUMBER", "").strip(),
         card_owner=os.getenv("CARD_OWNER", "").strip(),
 
+        price_1=int(os.getenv("PRICE_1", "5000")),
         price_7=int(os.getenv("PRICE_7", "15000")),
         price_30=int(os.getenv("PRICE_30", "39000")),
         price_365=int(os.getenv("PRICE_365", "299000")),
