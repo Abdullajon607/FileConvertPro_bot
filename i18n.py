@@ -43,6 +43,11 @@ TEXT: Dict[str, Dict[str, str]] = {
     "approved_user":"🎉 <b>To‘lovingiz tasdiqlandi!</b>\n\n💎 Sizga {days} kunlik Premium taqdim etildi.\n⏰ Amal qilish muddati: <b>{date}</b>\n\n<i>Botdan cheksiz foydalanishingiz mumkin!</i>",
     "rejected_user":"❌ Rad etildi. Qayta urinib ko‘ring.",
 
+    "text_received_confirm":"Matn qabul qilindi. Yana matn qo'shmoqchimisiz yoki konvertatsiya qilishni tasdiqlaysizmi?",
+    "btn_confirm_text":"✅ Tasdiqlash",
+    "btn_cancel_text_input":"❌ Bekor qilish",
+    "current_text_length":"Hozircha {length} ta belgi kiritildi.",
+
     "tr_choose":"Yo‘nalishni tanlang:",
     "admin_only":"⛔ Admin emas.",
 
@@ -88,6 +93,11 @@ TEXT: Dict[str, Dict[str, str]] = {
     "approved_user":"🎉 <b>Ваш платеж подтвержден!</b>\n\n💎 Вам предоставлен Premium на {days} дней.\n⏰ Срок действия: <b>{date}</b>\n\n<i>Теперь вы можете использовать бота без ограничений!</i>",
     "rejected_user":"❌ Отклонено.",
 
+    "text_received_confirm":"Текст получен. Хотите добавить еще текст или подтвердить конвертацию?",
+    "btn_confirm_text":"✅ Подтвердить",
+    "btn_cancel_text_input":"❌ Отменить",
+    "current_text_length":"Введено {length} символов.",
+
     "tr_choose":"Выберите направление:",
     "admin_only":"⛔ Вы не админ.",
 
@@ -132,6 +142,11 @@ TEXT: Dict[str, Dict[str, str]] = {
     "sent_admin":"✅ Sent to admin.",
     "approved_user":"🎉 <b>Your payment has been approved!</b>\n\n💎 You have been granted {days} days of Premium.\n⏰ Valid until: <b>{date}</b>\n\n<i>You can now use the bot without limits!</i>",
     "rejected_user":"❌ Rejected.",
+
+    "text_received_confirm":"Text received. Do you want to add more text or confirm conversion?",
+    "btn_confirm_text":"✅ Confirm",
+    "btn_cancel_text_input":"❌ Cancel",
+    "current_text_length":"{length} characters entered so far.",
 
     "tr_choose":"Choose direction:",
     "admin_only":"⛔ Not an admin.",
