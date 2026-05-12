@@ -132,7 +132,7 @@ async def get_file_from_message(m: Message) -> tuple[str | None, str | None]:
 
 async def main():
     if not cfg.token:
-        raise RuntimeError("BOT_TOKEN bo'sh (.env ni tekshir)")
+        raise RuntimeError("BOT_TOKEN topilmadi! .env fayli yo'q yoki ichi bo'sh.")
 
     ensure_dir(cfg.tmp_dir)
     ensure_dir(cfg.log_dir)

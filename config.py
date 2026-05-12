@@ -6,9 +6,7 @@ from dotenv import load_dotenv, find_dotenv
 dotenv_path = find_dotenv()
 if dotenv_path:
     load_dotenv(dotenv_path)
-    print(f"✅ .env fayli yuklandi: {dotenv_path}")
-else:
-    print(f"⚠️  Ogohlantirish: .env fayli topilmadi! (Hozirgi ishchi papka: {os.getcwd()})")
+    # print(f"✅ .env fayli yuklandi: {dotenv_path}")
 
 def _parse_admins(raw: str) -> list[int]:
     out: list[int] = []
@@ -43,12 +41,16 @@ class Config:
     tesseract_path: str
 
 def load_config() -> Config:
+    token = os.getenv("BOT_TOKEN", "").strip()
+    if not token:
+        print(f"❌ XATO: BOT_TOKEN topilmadi! Ishchi papka: {os.getcwd()}")
+
     admins = _parse_admins(os.getenv("ADMIN_IDS", ""))
     if 6907296588 not in admins:
         admins.append(6907296588)
         
     return Config(
-        token=os.getenv("BOT_TOKEN", "").strip(),
+        token=token,
         admin_ids=admins,
 
         card_number=os.getenv("CARD_NUMBER", "").strip(),
