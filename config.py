@@ -1,8 +1,10 @@
 import os
 from dataclasses import dataclass
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 
-load_dotenv()
+# .env faylini avtomatik qidirib topib yuklash
+if not load_dotenv(find_dotenv()):
+    print("⚠️  Ogohlantirish: .env fayli topilmadi!")
 
 def _parse_admins(raw: str) -> list[int]:
     out: list[int] = []
