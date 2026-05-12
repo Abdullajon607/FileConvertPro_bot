@@ -8,7 +8,7 @@ from datetime import timedelta
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, CallbackQuery, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart, Command, StateFilter
 from aiogram.fsm.context import FSMContext
 
 from config import load_config
@@ -412,6 +412,7 @@ async def main():
                 nice_date = new_until.strftime("%d.%m.%Y %H:%M")
                 await c.bot.send_message(user_id, t(user_lang, "approved_user", days=plan_days, date=nice_date), parse_mode="HTML")
             await c.answer("Approved")
+            await c.message.edit_reply_markup(reply_markup=None)
             return
 
         if action == "reject":
@@ -419,6 +420,7 @@ async def main():
             user_lang = await db.get_lang(user_id)
             await c.bot.send_message(user_id, t(user_lang, "rejected_user"))
             await c.answer("Rejected")
+            await c.message.edit_reply_markup(reply_markup=None)
             return
 
     # ---------------- CORE FEATURES ----------------
