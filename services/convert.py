@@ -2,9 +2,13 @@ import os
 import subprocess
 from pdf2docx import Converter
 from docx import Document
-from docx.shared import Inches
+from docx.shared import Inches, Pt as DocxPt
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml.ns import qn
 from pptx import Presentation
 from pptx.util import Pt
+from pptx.util import Inches as PptxInches
+from pptx.enum.text import PP_ALIGN
 
 def _require_file(path: str, name: str):
     if not path or not os.path.exists(path):
@@ -39,27 +43,62 @@ def text_to_docx(text: str, out_docx: str, title: str | None = None):
     if title:
         doc.add_heading(title, level=1)
     for line in (text or "").splitlines():
-        doc.add_paragraph(line)
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        run = p.add_run(line)
+        run.font.name = 'Times New Roman'
+        run.font.size = DocxPt(14)
+        # Word dasturi shriftni aniq tanishi uchun XML sozlamasi
+        run._element.rPr.rFonts.set(qn('w:ascii'), 'Times New Roman')
+        run._element.rPr.rFonts.set(qn('w:hAnsi'), 'Times New Roman')
     doc.save(out_docx)
 
 def text_to_pptx(text: str, out_pptx: str, title: str = "Generated Slides"):
     prs = Presentation()
-    # Use a title and content layout for the main slide
-    slide_layout = prs.slide_layouts[1] # Typically Title and Content layout
-    slide = prs.slides.add_slide(slide_layout)
+    # Matnni barcha qatorlarga bo'lib chiqamiz
+    all_lines = (text or "").splitlines()
+    if not all_lines:
+        all_lines = [" "]
 
-    # Set the title
-    title_shape = slide.shapes.title
-    title_shape.text = title
+    # Bo'sh slayd layouti (index 6 odatda mutlaqo bo'sh slayd)
+    blank_slide_layout = prs.slide_layouts[6] 
+    
+    # 20pt shrift uchun slaydga taxminan 11-12 qator sig'adi
+    MAX_LINES = 11 
+    current_slide = None
+    current_text_frame = None
+    line_idx = 0
 
-    # Add all text to the content placeholder
-    body_shape = slide.placeholders[1]
-    tf = body_shape.text_frame
-    tf.clear() # Clear any default text
-    for i, ln in enumerate((text or "").splitlines()):
-        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
-        p.text = ln.strip()
-        p.font.size = Pt(18) # Adjust font size if needed
+    for line in all_lines:
+        clean_line = line.strip()
+        
+        # Agar qator bo'sh bo'lsa, shunchaki bitta bo'sh joy tashlaymiz
+        if not clean_line:
+            if current_text_frame:
+                current_text_frame.add_paragraph()
+                line_idx += 1
+            continue
+
+        # Aqlli hisoblash: agar qator juda uzun bo'lsa, u slaydni avtomatik keyingi qatorga o'tkazadi (wrap)
+        # 20pt Times New Roman uchun slayd kengligiga taxminan 70 ta belgi sig'adi
+        needed_lines = max(1, len(clean_line) // 70)
+
+        # Yangi slayd kerakmi yoki yo'qligini tekshiramiz
+        if current_slide is None or (line_idx + needed_lines > MAX_LINES):
+            current_slide = prs.slides.add_slide(blank_slide_layout)
+            txBox = current_slide.shapes.add_textbox(PptxInches(0.5), PptxInches(0.5), PptxInches(9.0), PptxInches(6.5))
+            current_text_frame = txBox.text_frame
+            current_text_frame.word_wrap = True
+            line_idx = 0
+
+        # Matnni qo'shish
+        p = current_text_frame.add_paragraph()
+        p.alignment = PP_ALIGN.JUSTIFY
+        run = p.add_run()
+        run.text = clean_line
+        run.font.name = 'Times New Roman'
+        run.font.size = Pt(20)
+        line_idx += needed_lines
 
     prs.save(out_pptx)
 
