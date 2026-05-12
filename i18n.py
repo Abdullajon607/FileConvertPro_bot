@@ -29,7 +29,7 @@ TEXT: Dict[str, Dict[str, str]] = {
     "btn_finish_images":"✅ Word qilib berish",
 
     "processing":"⏳ Fayl tayyorlanmoqda, biroz kuting...",
-    "done":"✅ Muvaffaqiyatli yakunlandi!",
+    "done":"✅ @FileConvertPro_bot orqali tayyorlandi",
     "bad_input":"⚠️ Fayl yuboring.",
     "too_big":"⚠️ Fayl juda katta. Limit: {mb} MB",
 
@@ -82,7 +82,7 @@ TEXT: Dict[str, Dict[str, str]] = {
     "btn_finish_images":"✅ Создать Word",
 
     "processing":"⏳ Обработка файла, подождите...",
-    "done":"✅ Успешно завершено!",
+    "done":"✅ Подготовлено через @FileConvertPro_bot",
     "bad_input":"⚠️ Отправьте файл.",
     "too_big":"⚠️ Файл слишком большой. Лимит: {mb} MB",
 
@@ -135,7 +135,7 @@ TEXT: Dict[str, Dict[str, str]] = {
     "btn_finish_images":"✅ Generate Word",
 
     "processing":"⏳ Processing your file, please wait...",
-    "done":"✅ Successfully completed!",
+    "done":"✅ Prepared via @FileConvertPro_bot",
     "bad_input":"⚠️ Send a file.",
     "too_big":"⚠️ File too large. Limit: {mb} MB",
 

@@ -33,7 +33,10 @@ def week_str_local() -> str:
     return f"{d.year}-W{d.isocalendar()[1]:02d}"
 
 def rand_name(prefix: str, ext: str) -> str:
-    return f"{prefix}_{uuid.uuid4().hex}.{ext}"
+    # Uzun UUID o'rniga qisqa va tushunarli nom: Prefiks_Vaqt_ID.kengaytma
+    ts = datetime.now().strftime("%H%M%S")
+    short_id = uuid.uuid4().hex[:4]
+    return f"{prefix}_{ts}_{short_id}.{ext}"
 
 def safe_ext(filename: str | None) -> str:
     if not filename:

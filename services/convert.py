@@ -105,12 +105,23 @@ def text_to_pptx(text: str, out_pptx: str, title: str = "Generated Slides"):
 
     prs.save(out_pptx)
 
-def images_to_docx_embed(image_paths: list[str], out_docx: str, title: str = "Scan"):
+def images_to_docx_embed(image_paths: list[str], out_docx: str):
     if not image_paths:
         raise RuntimeError("Rasmlar yo'q.")
     doc = Document()
-    doc.add_heading(title, level=1)
+    
+    # Sahifa chekkalarini (margins) 0.5 dyuymga o'rnatamiz
+    section = doc.sections[0]
+    section.top_margin = DocxInches(0.5)
+    section.bottom_margin = DocxInches(0.5)
+    section.left_margin = DocxInches(0.5)
+    section.right_margin = DocxInches(0.5)
+
     for img_p in image_paths:
         if os.path.exists(img_p):
-            doc.add_picture(img_p, width=DocxInches(6.0))
+            p = doc.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run = p.add_run()
+            # Rasmni sahifa kengligiga moslab (6.5 dyuym) joylaymiz
+            run.add_picture(img_p, width=DocxInches(6.5))
     doc.save(out_docx)

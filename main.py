@@ -113,13 +113,13 @@ async def get_file_from_message(m: Message) -> tuple[str | None, str | None]:
         if not size_ok(m.document.file_size, cfg.max_file_mb):
             return (None, "too_big")
         ext = safe_ext(m.document.file_name).lstrip(".") or "bin"
-        p = os.path.join(tmp, rand_name("in", ext))
+        p = os.path.join(tmp, rand_name("f", ext))
         f = await m.bot.get_file(m.document.file_id, request_timeout=300)
         await m.bot.download_file(f.file_path, p, timeout=300)
         return (p, "file")
 
     if m.photo:
-        p = os.path.join(tmp, rand_name("in", "jpg"))
+        p = os.path.join(tmp, rand_name("f", "jpg"))
         f = await m.bot.get_file(m.photo[-1].file_id, request_timeout=300)
         await m.bot.download_file(f.file_path, p, timeout=300)
         return (p, "file")
@@ -437,23 +437,17 @@ async def main():
         await state.clear()
         await state.update_data(action=action)
 
-        msg_text = ""
         if action == "img2docx":
             await state.set_state(ImgConvertFlow.awaiting_image)
             await state.update_data(images=[])
-            msg_text = "🖼 " + t(lang, "send_file") + " Bir nechta rasm yuborishingiz mumkin."
+            msg_text = "🖼 Bir nechta rasm yuboring:"
         elif action in ("text2docx", "text2pptx"):
             await state.set_state(ConvertFlow.awaiting_text)
-            msg_text = t(lang, "send_text")
             await state.update_data(accumulated_text="")
+            msg_text = "✍️ Matn yuboring:"
         else:
             await state.set_state(ConvertFlow.awaiting_file)
-            msg_text = t(lang, "send_file")
-
-        if not prem:
-            msg_text += "\n\n" + t(lang, "free_left")
-        else:
-            msg_text += "\n\n" + t(lang, "premium_active", until=until)
+            msg_text = "📎 Fayl yuboring:"
 
         await m.answer(msg_text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙", callback_data="menu:back")]]))
 
@@ -519,11 +513,11 @@ async def main():
         
         async def job():
             if action == "text2docx":
-                out = os.path.join(cfg.tmp_dir, rand_name("text", "docx"))
+                out = os.path.join(cfg.tmp_dir, rand_name("Hujjat", "docx"))
                 await asyncio.to_thread(text_to_docx, final_text, out, "Generated Document")
                 return out
             elif action == "text2pptx":
-                out = os.path.join(cfg.tmp_dir, rand_name("text", "pptx"))
+                out = os.path.join(cfg.tmp_dir, rand_name("Slayd", "pptx"))
                 await asyncio.to_thread(text_to_pptx, final_text, out, "Generated Slides")
                 return out
             raise RuntimeError("Noma'lum amal")
@@ -531,7 +525,7 @@ async def main():
         out_path = None
         try:
             out_path = await run_heavy(uid, job)
-            await c.message.answer_document(_sendable(out_path), caption=t(lang, "done"), request_timeout=300)
+            await c.message.answer_document(_sendable(out_path), caption=t(lang, "done"), parse_mode="HTML", request_timeout=300)
             await c.message.answer(t(lang, "menu"), reply_markup=kb_main(lang))
             if not prem:
                 await mark_used(uid, "convert")
@@ -603,13 +597,13 @@ async def main():
         await c.message.edit_text(t(lang, "processing"))
         
         async def job():
-            out = os.path.join(cfg.tmp_dir, rand_name("scan", "docx"))
-            await asyncio.to_thread(images_to_docx_embed, images, out, "Scan")
+            out = os.path.join(cfg.tmp_dir, rand_name("Word", "docx"))
+            await asyncio.to_thread(images_to_docx_embed, images, out)
             return out
 
         try:
             out_path = await run_heavy(uid, job)
-            await c.message.answer_document(_sendable(out_path), caption=t(lang, "done"), request_timeout=300)
+            await c.message.answer_document(_sendable(out_path), caption=t(lang, "done"), parse_mode="HTML", request_timeout=300)
             await c.message.answer(t(lang, "menu"), reply_markup=kb_main(lang))
             if not prem:
                 await mark_used(uid, "convert")
@@ -644,7 +638,7 @@ async def main():
         ext = os.path.splitext(in_path)[1].lower()
 
         async def job():
-            out = os.path.join(cfg.tmp_dir, rand_name("compressed", ext.lstrip('.')))
+            out = os.path.join(cfg.tmp_dir, rand_name("Siqilgan", ext.lstrip('.')))
             if ext == ".pdf":
                 return await asyncio.to_thread(compress_pdf, cfg.gs_path, in_path, out)
             elif ext in (".docx", ".pptx"):
@@ -659,7 +653,7 @@ async def main():
             new_sz = os.path.getsize(out_path) / (1024*1024)
             caption = t(lang, "done") + f"\n📉 {old_sz:.1f}MB ➡️ {new_sz:.1f}MB"
             
-            await m.answer_document(_sendable(out_path), caption=caption)
+            await m.answer_document(_sendable(out_path), caption=caption, parse_mode="HTML")
             await m.answer(t(lang, "menu"), reply_markup=kb_main(lang))
             if not prem:
                 await mark_used(uid, "convert")
@@ -700,7 +694,7 @@ async def main():
             if action == "pdf2docx":
                 if ext != ".pdf":
                     raise RuntimeError("PDF yuboring.")
-                out = os.path.join(cfg.tmp_dir, rand_name("out", "docx"))
+                out = os.path.join(cfg.tmp_dir, rand_name("Fayl", "docx"))
                 await asyncio.to_thread(pdf_to_docx, in_path, out)
                 return out
 
@@ -717,7 +711,7 @@ async def main():
 
         try:
             out_path = await run_heavy(uid, job)
-            await m.answer_document(_sendable(out_path), caption=t(lang, "done"), request_timeout=300)
+            await m.answer_document(_sendable(out_path), caption=t(lang, "done"), parse_mode="HTML", request_timeout=300)
             await m.answer(t(lang, "menu"), reply_markup=kb_main(lang))
             if not prem:
                 await mark_used(uid, "convert")
