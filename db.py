@@ -117,7 +117,7 @@ class DB:
             raise ValueError("bad field")
         async with aiosqlite.connect(self.path) as db:
             await db.execute(
-                f"UPDATE daily_usage SET {field}={field}+1 WHERE user_id=? AND day=?",
+                f"UPDATE daily_usage SET {field} = {field} + 1 WHERE user_id = ? AND day = ?",
                 (user_id, day)
             )
             await db.commit()

@@ -472,6 +472,13 @@ async def main():
     async def handle_text_input(m: Message, state: FSMContext):
         uid = m.from_user.id
         lang = await db.get_lang(uid)
+        
+        # Limitni har bir xabar kelganda tekshiramiz (yomon niyatli foydalanuvchilar serverni band qilmasligi uchun)
+        prem, _ = await is_premium(uid)
+        if not prem and not await can_free(uid, "convert"):
+            await m.answer(t(lang, "limit_over"))
+            await state.clear()
+            return
     
         current_text = (m.text or "").strip()
         if not current_text:

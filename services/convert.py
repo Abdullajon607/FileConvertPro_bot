@@ -2,11 +2,11 @@ import os
 import subprocess
 from pdf2docx import Converter
 from docx import Document
-from docx.shared import Inches, Pt as DocxPt
+from docx.shared import Inches as DocxInches, Pt as DocxPt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from pptx import Presentation
-from pptx.util import Pt
+from pptx.util import Pt as PptxPt
 from pptx.util import Inches as PptxInches
 from pptx.enum.text import PP_ALIGN
 
@@ -43,9 +43,11 @@ def text_to_docx(text: str, out_docx: str, title: str | None = None):
     if title:
         doc.add_heading(title, level=1)
     for line in (text or "").splitlines():
+        clean_line = line.strip()
+        if not clean_line: continue
         p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        run = p.add_run(line.strip())
+        run = p.add_run(clean_line)
         run.font.name = 'Times New Roman'
         run.font.size = DocxPt(14)
         # Word dasturi shriftni aniq tanishi uchun XML sozlamasi
@@ -62,7 +64,8 @@ def text_to_pptx(text: str, out_pptx: str, title: str = "Generated Slides"):
 
     blank_slide_layout = prs.slide_layouts[6] # Odatda butunlay bo'sh slayd
     
-    MAX_LINES = 11 # 20pt shriftda taxminan sig'adigan qatorlar soni
+    # 20pt shriftda va 0.5 dyuymli chekkalarda slaydga taxminan 11 qator sig'adi
+    MAX_LINES = 11 
     current_slide = None
     current_text_frame = None
     line_count = 0
@@ -76,14 +79,17 @@ def text_to_pptx(text: str, out_pptx: str, title: str = "Generated Slides"):
                 line_count += 1
             continue
 
-        # Agar qator juda uzun bo'lsa, necha qator joy olishini taxmin qilamiz (70 belgi = 1 qator)
-        needed = max(1, len(text_line) // 70)
+        # Aqlli wrap hisobi: 20pt Times New Roman uchun bir qatorga taxminan 65-70 belgi sig'adi
+        needed = max(1, (len(text_line) // 65) + 1)
 
         # Yangi slayd ochish kerakligini tekshiramiz
         if current_slide is None or (line_count + needed > MAX_LINES):
             current_slide = prs.slides.add_slide(blank_slide_layout)
-            # Matn qutisini yuqoridan boshlab joylashtiramiz
-            txBox = current_slide.shapes.add_textbox(PptxInches(0.5), PptxInches(0.5), PptxInches(9.0), PptxInches(6.5))
+            
+            # Slayd o'lchami odatda 10x7.5 dyuym. Matn qutisini chekkalar bilan joylaymiz.
+            left, top = PptxInches(0.5), PptxInches(0.5)
+            width, height = PptxInches(9.0), PptxInches(6.5)
+            txBox = current_slide.shapes.add_textbox(left, top, width, height)
             current_text_frame = txBox.text_frame
             current_text_frame.word_wrap = True
             line_count = 0
