@@ -11,6 +11,9 @@ class ConvertFlow(StatesGroup):
 class ImgConvertFlow(StatesGroup):
     awaiting_image = State()
 
+class CompressFlow(StatesGroup):
+    awaiting_file = State()
+
 class TranslitFlow(StatesGroup):
     awaiting_text = State()
 

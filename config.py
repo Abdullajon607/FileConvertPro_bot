@@ -39,6 +39,7 @@ class Config:
 
     libreoffice_path: str
     tesseract_path: str
+    gs_path: str
 
 def load_config() -> Config:
     token = os.getenv("BOT_TOKEN", "").strip()
@@ -71,4 +72,5 @@ def load_config() -> Config:
 
         libreoffice_path=os.getenv("LIBREOFFICE_PATH", "").strip(),
         tesseract_path=os.getenv("TESSERACT_PATH", "").strip(),
+        gs_path=os.getenv("GS_PATH", "gs").strip(),
     )

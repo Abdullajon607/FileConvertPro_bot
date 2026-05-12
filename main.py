@@ -13,7 +13,7 @@ from aiogram.fsm.context import FSMContext
 
 from config import load_config
 from db import DB
-from states import LangFlow, ConvertFlow, ImgConvertFlow, TranslitFlow, PaymentFlow, ContactAdminFlow
+from states import LangFlow, ConvertFlow, ImgConvertFlow, TranslitFlow, PaymentFlow, ContactAdminFlow, CompressFlow
 from keyboards import (
     kb_lang, kb_main, kb_pay_kind,
     kb_premium_plans, kb_admin_payment, kb_finish_images,
@@ -28,6 +28,7 @@ from utils import (
 
 from services.translit import latin_to_cyr, cyr_to_latin
 from services.convert import pdf_to_docx, docx_to_pdf, text_to_docx, text_to_pptx, images_to_docx_embed
+from services.compress import compress_pdf, compress_office_file
 
 
 cfg = load_config()
@@ -201,28 +202,6 @@ async def main():
         await c.message.delete()
         await c.message.answer(t(lang, "menu"), reply_markup=kb_main(lang))
         await c.answer()
-
-    @dp.message(F.text.in_(get_all("profile")))
-    async def menu_profile(m: Message, state: FSMContext):
-        await state.clear()
-        uid = m.from_user.id
-        lang = await db.get_lang(uid)
-        prem, until = await is_premium(uid)
-        week = week_str_local()
-        await db.ensure_usage(uid, week)
-        c_used, t_used = await db.get_usage(uid, week)
-        total_used = c_used + t_used
-        
-        status = f"💎 Premium (Tugash: {until})" if prem else "Standart"
-        limit_info = "Cheksiz" if prem else f"{max(0, 3 - total_used)} ta qoldi (Haftalik: 3 ta)"
-        
-        text = (
-            f"👤 <b>Sizning profilingiz:</b>\n\n"
-            f"🆔 ID: <code>{uid}</code>\n"
-            f"📊 Status: {status}\n"
-            f"🔄 Bepul limitlar: {limit_info}"
-        )
-        await m.answer(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙", callback_data="menu:back")]]))
 
     # ---------------- CONTACT ADMIN ----------------
     @dp.message(F.text.in_(get_all("contact_admin")))
@@ -424,6 +403,16 @@ async def main():
             return
 
     # ---------------- CORE FEATURES ----------------
+    @dp.message(F.text.in_(get_all("compress")))
+    async def menu_compress(m: Message, state: FSMContext):
+        lang = await db.get_lang(m.from_user.id)
+        await state.clear()
+        await state.set_state(CompressFlow.awaiting_file)
+        await m.answer(
+            t(lang, "send_compress_file"),
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙", callback_data="menu:back")]])
+        )
+
     action_texts = get_all("pdf2docx") + get_all("docx2pdf") + get_all("text2docx") + get_all("text2pptx") + get_all("img2docx")
     @dp.message(F.text.in_(action_texts))
     async def choose_action(m: Message, state: FSMContext):
@@ -640,6 +629,50 @@ async def main():
                     except: pass
             await state.clear()
 
+    @dp.message(CompressFlow.awaiting_file)
+    async def do_compress(m: Message, state: FSMContext):
+        uid = m.from_user.id
+        lang = await db.get_lang(uid)
+        prem, _ = await is_premium(uid)
+
+        in_path, kind = await get_file_from_message(m)
+        if not in_path:
+            await m.answer(t(lang, "bad_input"))
+            return
+
+        proc_msg = await m.answer(t(lang, "processing"))
+        ext = os.path.splitext(in_path)[1].lower()
+
+        async def job():
+            out = os.path.join(cfg.tmp_dir, rand_name("compressed", ext.lstrip('.')))
+            if ext == ".pdf":
+                return await asyncio.to_thread(compress_pdf, cfg.gs_path, in_path, out)
+            elif ext in (".docx", ".pptx"):
+                return await asyncio.to_thread(compress_office_file, in_path, out)
+            else:
+                raise RuntimeError("Faqat PDF, DOCX yoki PPTX siqish mumkin.")
+
+        try:
+            out_path = await run_heavy(uid, job)
+            # Siqilganlik darajasini ko'rsatish
+            old_sz = os.path.getsize(in_path) / (1024*1024)
+            new_sz = os.path.getsize(out_path) / (1024*1024)
+            caption = t(lang, "done") + f"\n📉 {old_sz:.1f}MB ➡️ {new_sz:.1f}MB"
+            
+            await m.answer_document(_sendable(out_path), caption=caption)
+            await m.answer(t(lang, "menu"), reply_markup=kb_main(lang))
+            if not prem:
+                await mark_used(uid, "convert")
+        except Exception as e:
+            logger.error(f"Compress error: {e}")
+            await m.answer(f"⚠️ Xatolik: {human_err(e)}")
+        finally:
+            await proc_msg.delete()
+            if os.path.exists(in_path): os.remove(in_path)
+            if 'out_path' in locals() and out_path and os.path.exists(out_path):
+                os.remove(out_path)
+            await state.clear()
+
     @dp.message(ConvertFlow.awaiting_file)
     async def do_file(m: Message, state: FSMContext):
         uid = m.from_user.id
@@ -674,11 +707,12 @@ async def main():
             if action == "docx2pdf":
                 if ext != ".docx":
                     raise RuntimeError("DOCX yuboring.")
-                if not cfg.libreoffice_path or not os.path.exists(cfg.libreoffice_path):
+                # Linuxda soffice odatda /usr/bin/soffice da bo'ladi
+                lo_path = cfg.libreoffice_path or "/usr/bin/soffice"
+                if not os.path.exists(lo_path):
                     raise RuntimeError(t(lang, "need_lo"))
-                out_pdf = await asyncio.to_thread(docx_to_pdf, cfg.libreoffice_path, in_path, cfg.tmp_dir)
+                out_pdf = await asyncio.to_thread(docx_to_pdf, lo_path, in_path, cfg.tmp_dir)
                 return out_pdf
-
             raise RuntimeError("not_supported")
 
         try:

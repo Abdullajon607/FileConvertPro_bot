@@ -26,7 +26,7 @@ def kb_main(lang: str):
         ],
         [
             KeyboardButton(text=t(lang, "pay")),
-            KeyboardButton(text=t(lang, "profile"))
+            KeyboardButton(text=t(lang, "compress"))
         ],
         [
             KeyboardButton(text=t(lang, "contact_admin"))

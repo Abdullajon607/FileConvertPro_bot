@@ -12,6 +12,7 @@ TEXT: Dict[str, Dict[str, str]] = {
     "text2docx":"✍️ Matn ➡️ DOCX",
     "text2pptx":"📊 Matn ➡️ PPTX",
     "img2docx":"🖼 Rasm ➡️ DOCX",
+    "compress":"🗜 Hajmni siqish (MB)",
 
     "translit":"🔤 Kiril ↔️ Lotin",
     "pay":"💎 Premium & To‘lov",
@@ -22,6 +23,7 @@ TEXT: Dict[str, Dict[str, str]] = {
 
     "send_file":"📎 Iltimos, faylni yuboring.",
     "send_text":"✍️ Iltimos, matn yuboring.",
+    "send_compress_file":"📎 Siqish uchun faylni yuboring (PDF, DOCX, PPTX):",
 
     "img_received":"🖼 {count}-rasm qabul qilindi. Yana rasm yuborishingiz mumkin.\n\nBarcha rasmlarni yuborib bo'lgan bo'lsangiz, quyidagi tugmani bosing:",
     "btn_finish_images":"✅ Word qilib berish",
@@ -63,6 +65,7 @@ TEXT: Dict[str, Dict[str, str]] = {
     "text2docx":"✍️ Текст ➡️ DOCX",
     "text2pptx":"📊 Текст ➡️ PPTX",
     "img2docx":"🖼 Фото ➡️ DOCX",
+    "compress":"🗜 Сжать размер (МБ)",
 
     "translit":"🔤 Кир ↔️ Лат",
     "pay":"💎 Premium & Оплата",
@@ -73,6 +76,7 @@ TEXT: Dict[str, Dict[str, str]] = {
 
     "send_file":"📎 Пожалуйста, отправьте файл.",
     "send_text":"✍️ Пожалуйста, отправьте текст.",
+    "send_compress_file":"📎 Отправьте файл для сжатия (PDF, DOCX, PPTX):",
 
     "img_received":"🖼 {count} фото получено. Вы можете отправить еще.\n\nЕсли вы отправили все фото, нажмите кнопку ниже:",
     "btn_finish_images":"✅ Создать Word",
@@ -114,6 +118,7 @@ TEXT: Dict[str, Dict[str, str]] = {
     "text2docx":"✍️ Text ➡️ DOCX",
     "text2pptx":"📊 Text ➡️ PPTX",
     "img2docx":"🖼 Image ➡️ DOCX",
+    "compress":"🗜 Compress Size (MB)",
 
     "translit":"🔤 Cyr ↔️ Lat",
     "pay":"💎 Premium & Payment",
@@ -124,6 +129,7 @@ TEXT: Dict[str, Dict[str, str]] = {
 
     "send_file":"📎 Please send a file.",
     "send_text":"✍️ Please send text.",
+    "send_compress_file":"📎 Send file to compress (PDF, DOCX, PPTX):",
 
     "img_received":"🖼 {count} image(s) received. You can send more.\n\nIf you are done, click the button below:",
     "btn_finish_images":"✅ Generate Word",
