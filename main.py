@@ -8,7 +8,7 @@ from datetime import timedelta
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, CallbackQuery, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart, Command, StateFilter
 from aiogram.fsm.context import FSMContext
 
 from config import load_config
@@ -466,7 +466,7 @@ async def main():
 
         await m.answer(msg_text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙", callback_data="menu:back")]]))
 
-    @dp.message(ConvertFlow.awaiting_text | ConvertFlow.awaiting_text_confirmation)
+    @dp.message(StateFilter(ConvertFlow.awaiting_text, ConvertFlow.awaiting_text_confirmation))
     async def handle_text_input(m: Message, state: FSMContext):
         uid = m.from_user.id
         lang = await db.get_lang(uid)
