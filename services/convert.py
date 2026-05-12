@@ -44,28 +44,22 @@ def text_to_docx(text: str, out_docx: str, title: str | None = None):
 
 def text_to_pptx(text: str, out_pptx: str, title: str = "Generated Slides"):
     prs = Presentation()
-    slide = prs.slides.add_slide(prs.slide_layouts[0])
-    slide.shapes.title.text = title
-    slide.placeholders[1].text = ""
+    # Use a title and content layout for the main slide
+    slide_layout = prs.slide_layouts[1] # Typically Title and Content layout
+    slide = prs.slides.add_slide(slide_layout)
 
-    lines = [ln.strip() for ln in (text or "").splitlines() if ln.strip()]
-    chunk, chunks = [], []
-    for ln in lines:
-        chunk.append(ln)
-        if len(chunk) >= 8:
-            chunks.append(chunk); chunk = []
-    if chunk:
-        chunks.append(chunk)
+    # Set the title
+    title_shape = slide.shapes.title
+    title_shape.text = title
 
-    for i, ch in enumerate(chunks, start=1):
-        s = prs.slides.add_slide(prs.slide_layouts[1])
-        s.shapes.title.text = f"Slide {i}"
-        tf = s.shapes.placeholders[1].text_frame
-        tf.clear()
-        for j, ln in enumerate(ch):
-            p = tf.paragraphs[0] if j == 0 else tf.add_paragraph()
-            p.text = ln
-            p.font.size = Pt(20)
+    # Add all text to the content placeholder
+    body_shape = slide.placeholders[1]
+    tf = body_shape.text_frame
+    tf.clear() # Clear any default text
+    for i, ln in enumerate((text or "").splitlines()):
+        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+        p.text = ln.strip()
+        p.font.size = Pt(18) # Adjust font size if needed
 
     prs.save(out_pptx)
 

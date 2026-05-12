@@ -1,6 +1,7 @@
 import os
 import asyncio
 import aiohttp
+import time
 import re
 import html
 from datetime import timedelta
@@ -44,6 +45,20 @@ async def run_heavy(uid: int, coro_fn):
     async with ulock(uid):
         async with GLOBAL_SEM:
             return await coro_fn()
+
+async def cleanup_tmp_files(tmp_dir: str, max_age: int = 3600):
+    """Eski vaqtinchalik fayllarni fon rejimida tozalab turadi."""
+    while True:
+        try:
+            now = time.time()
+            for filename in os.listdir(tmp_dir):
+                path = os.path.join(tmp_dir, filename)
+                if os.path.isfile(path) and (now - os.path.getmtime(path) > max_age):
+                    os.remove(path)
+                    logger.info(f"Auto-cleaned: {filename}")
+        except Exception as e:
+            logger.error(f"Cleanup error: {e}")
+        await asyncio.sleep(1800) # Har 30 minutda tekshirish
 
 async def download_url(url: str, dest_path: str, timeout=300):
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as session:
@@ -120,6 +135,7 @@ async def main():
 
     ensure_dir(cfg.tmp_dir)
     ensure_dir(cfg.log_dir)
+    asyncio.create_task(cleanup_tmp_files(cfg.tmp_dir))
     await db.init()
 
     bot = Bot(cfg.token)
