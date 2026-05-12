@@ -8,7 +8,7 @@ from datetime import timedelta
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, CallbackQuery, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.filters import CommandStart, Command, StateFilter
+from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 
 from config import load_config
@@ -454,7 +454,7 @@ async def main():
         elif action in ("text2docx", "text2pptx"):
             await state.set_state(ConvertFlow.awaiting_text)
             msg_text = t(lang, "send_text")
-            await state.update_data(accumulated_text="") # Matnni yig'ishni boshlash uchun
+            await state.update_data(accumulated_text="")
         else:
             await state.set_state(ConvertFlow.awaiting_file)
             msg_text = t(lang, "send_file")
@@ -470,38 +470,34 @@ async def main():
     async def handle_text_input(m: Message, state: FSMContext):
         uid = m.from_user.id
         lang = await db.get_lang(uid)
-        prem, _ = await is_premium(uid)
     
-        current_input_text = (m.text or "").strip()
-        if not current_input_text:
-            await m.answer(t(lang, "send_text")) # Agar foydalanuvchi bo'sh xabar yuborsa
+        current_text = (m.text or "").strip()
+        if not current_text:
+            await m.answer(t(lang, "send_text"))
             return
     
         data = await state.get_data()
-        accumulated_text = data.get("accumulated_text", "")
-        
-        if accumulated_text:
-            accumulated_text += "\n" + current_input_text
+        accumulated = data.get("accumulated_text", "")
+        if accumulated:
+            accumulated += "\n" + current_text
         else:
-            accumulated_text = current_input_text
-    
-        await state.update_data(accumulated_text=accumulated_text)
+            accumulated = current_text
+            
+        await state.update_data(accumulated_text=accumulated)
         await state.set_state(ConvertFlow.awaiting_text_confirmation)
-    
-        # Tasdiqlash xabarini yuborish/yangilash
-        msg_text = t(lang, "text_received_confirm") + "\n\n" + t(lang, "current_text_length", length=len(accumulated_text))
         
-        # Oldingi tasdiqlash xabarini o'chirish (agar mavjud bo'lsa)
-        prev_conf_msg_id = data.get("conf_msg_id")
-        if prev_conf_msg_id:
-            try:
-                await m.bot.delete_message(m.chat.id, prev_conf_msg_id)
-            except Exception:
-                pass # Xabar topilmasa yoki o'chirilgan bo'lsa e'tibor bermaymiz
-    
-        conf_msg = await m.answer(msg_text, reply_markup=kb_text_confirmation(lang))
-        await state.update_data(conf_msg_id=conf_msg.message_id)
-    
+        # Oldingi tasdiqlash xabari bo'lsa o'chirish
+        old_msg = data.get("conf_msg_id")
+        if old_msg:
+            try: await m.bot.delete_message(m.chat.id, old_msg)
+            except: pass
+            
+        msg = await m.answer(
+            t(lang, "text_received_confirm") + f"\n\n" + t(lang, "current_text_length", length=len(accumulated)),
+            reply_markup=kb_text_confirmation(lang)
+        )
+        await state.update_data(conf_msg_id=msg.message_id)
+
     @dp.callback_query(F.data == "text_convert:confirm")
     async def confirm_text_conversion(c: CallbackQuery, state: FSMContext):
         uid = c.from_user.id
@@ -511,33 +507,29 @@ async def main():
         if not prem and not await can_free(uid, "convert"):
             await c.message.edit_text(t(lang, "limit_over"))
             await state.clear()
-            await c.answer()
             return
-    
+            
         data = await state.get_data()
         action = data.get("action")
-        text_to_convert = data.get("accumulated_text", "").strip()
-    
-        if not text_to_convert:
-            await c.message.edit_text(t(lang, "send_text"))
-            await state.clear()
-            await c.answer()
+        final_text = data.get("accumulated_text", "").strip()
+        
+        if not final_text:
+            await c.answer(t(lang, "send_text"), show_alert=True)
             return
-    
+            
         await c.message.edit_text(t(lang, "processing"))
-        await c.answer()
-    
+        
         async def job():
             if action == "text2docx":
                 out = os.path.join(cfg.tmp_dir, rand_name("text", "docx"))
-                await asyncio.to_thread(text_to_docx, text_to_convert, out, "Generated Document")
+                await asyncio.to_thread(text_to_docx, final_text, out, "Generated Document")
                 return out
-            if action == "text2pptx":
+            elif action == "text2pptx":
                 out = os.path.join(cfg.tmp_dir, rand_name("text", "pptx"))
-                await asyncio.to_thread(text_to_pptx, text_to_convert, out, "Generated Slides")
+                await asyncio.to_thread(text_to_pptx, final_text, out, "Generated Slides")
                 return out
-            raise RuntimeError("not_supported")
-    
+            raise RuntimeError("Noma'lum amal")
+            
         out_path = None
         try:
             out_path = await run_heavy(uid, job)
@@ -546,14 +538,16 @@ async def main():
             if not prem:
                 await mark_used(uid, "convert")
         except Exception as e:
-            logger.info(f"text conversion error: {human_err(e)}")
+            logger.error(f"Text conversion error: {e}")
             await c.message.answer(f"⚠️ Xatolik: {human_err(e)}")
         finally:
             if out_path and os.path.exists(out_path):
                 try: os.remove(out_path)
                 except: pass
             await state.clear()
-    
+            try: await c.message.delete()
+            except: pass
+
     @dp.callback_query(F.data == "text_convert:cancel")
     async def cancel_text_input(c: CallbackQuery, state: FSMContext):
         lang = await db.get_lang(c.from_user.id)
@@ -561,7 +555,6 @@ async def main():
         await c.message.answer(t(lang, "menu"), reply_markup=kb_main(lang))
         await state.clear()
         await c.answer()
-
     @dp.message(ImgConvertFlow.awaiting_image)
     async def do_img_upload(m: Message, state: FSMContext):
         uid = m.from_user.id

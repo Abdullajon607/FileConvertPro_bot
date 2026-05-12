@@ -45,7 +45,7 @@ def text_to_docx(text: str, out_docx: str, title: str | None = None):
     for line in (text or "").splitlines():
         p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        run = p.add_run(line)
+        run = p.add_run(line.strip())
         run.font.name = 'Times New Roman'
         run.font.size = DocxPt(14)
         # Word dasturi shriftni aniq tanishi uchun XML sozlamasi
@@ -55,50 +55,47 @@ def text_to_docx(text: str, out_docx: str, title: str | None = None):
 
 def text_to_pptx(text: str, out_pptx: str, title: str = "Generated Slides"):
     prs = Presentation()
-    # Matnni barcha qatorlarga bo'lib chiqamiz
-    all_lines = (text or "").splitlines()
-    if not all_lines:
-        all_lines = [" "]
+    # Matnni barcha qatorlarga bo'lamiz
+    lines = (text or "").splitlines()
+    if not lines:
+        lines = [" "]
 
-    # Bo'sh slayd layouti (index 6 odatda mutlaqo bo'sh slayd)
-    blank_slide_layout = prs.slide_layouts[6] 
+    blank_slide_layout = prs.slide_layouts[6] # Odatda butunlay bo'sh slayd
     
-    # 20pt shrift uchun slaydga taxminan 11-12 qator sig'adi
-    MAX_LINES = 11 
+    MAX_LINES = 11 # 20pt shriftda taxminan sig'adigan qatorlar soni
     current_slide = None
     current_text_frame = None
-    line_idx = 0
+    line_count = 0
 
-    for line in all_lines:
-        clean_line = line.strip()
-        
-        # Agar qator bo'sh bo'lsa, shunchaki bitta bo'sh joy tashlaymiz
-        if not clean_line:
+    for line in lines:
+        text_line = line.strip()
+        if not text_line:
+            # Bo'sh qator tashlash
             if current_text_frame:
                 current_text_frame.add_paragraph()
-                line_idx += 1
+                line_count += 1
             continue
 
-        # Aqlli hisoblash: agar qator juda uzun bo'lsa, u slaydni avtomatik keyingi qatorga o'tkazadi (wrap)
-        # 20pt Times New Roman uchun slayd kengligiga taxminan 70 ta belgi sig'adi
-        needed_lines = max(1, len(clean_line) // 70)
+        # Agar qator juda uzun bo'lsa, necha qator joy olishini taxmin qilamiz (70 belgi = 1 qator)
+        needed = max(1, len(text_line) // 70)
 
-        # Yangi slayd kerakmi yoki yo'qligini tekshiramiz
-        if current_slide is None or (line_idx + needed_lines > MAX_LINES):
+        # Yangi slayd ochish kerakligini tekshiramiz
+        if current_slide is None or (line_count + needed > MAX_LINES):
             current_slide = prs.slides.add_slide(blank_slide_layout)
+            # Matn qutisini yuqoridan boshlab joylashtiramiz
             txBox = current_slide.shapes.add_textbox(PptxInches(0.5), PptxInches(0.5), PptxInches(9.0), PptxInches(6.5))
             current_text_frame = txBox.text_frame
             current_text_frame.word_wrap = True
-            line_idx = 0
+            line_count = 0
 
-        # Matnni qo'shish
+        # Paragraf qo'shish va formatlash
         p = current_text_frame.add_paragraph()
         p.alignment = PP_ALIGN.JUSTIFY
         run = p.add_run()
-        run.text = clean_line
+        run.text = text_line
         run.font.name = 'Times New Roman'
-        run.font.size = Pt(20)
-        line_idx += needed_lines
+        run.font.size = PptxPt(20)
+        line_count += needed
 
     prs.save(out_pptx)
 
@@ -109,5 +106,5 @@ def images_to_docx_embed(image_paths: list[str], out_docx: str, title: str = "Sc
     doc.add_heading(title, level=1)
     for img_p in image_paths:
         if os.path.exists(img_p):
-            doc.add_picture(img_p, width=Inches(6.0))
+            doc.add_picture(img_p, width=DocxInches(6.0))
     doc.save(out_docx)
