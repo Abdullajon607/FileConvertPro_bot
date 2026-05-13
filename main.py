@@ -653,6 +653,7 @@ async def main():
             try: await c.message.delete()
             except Exception: pass
             if out_path and os.path.exists(out_path): # Natija faylini tozalash
+                try: os.remove(out_path)
                 except: pass
             await state.clear()
 
@@ -880,6 +881,9 @@ async def main():
     async def do_file(m: Message, state: FSMContext, lang: str):
         uid = m.from_user.id # Middleware langni olib beradi, lekin uidni o'zimiz olamiz
         prem, _ = await is_premium(uid)
+
+        in_path = None
+        out_path = None
 
         if not prem and not await can_free(uid, "convert"):
             await m.answer(t(lang, "limit_over"))
