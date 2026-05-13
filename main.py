@@ -968,8 +968,10 @@ async def main():
             logger.error(f"file error: {e}", exc_info=True)
             await m.answer(t(lang, "err_generic"))
         finally:
-            try: await proc_msg.delete() # "processing" xabarini o'chirish
-            except Exception: pass
+            if proc_msg:
+                try: await proc_msg.delete() # "processing" xabarini o'chirish
+                except Exception: pass
+            
             if in_path and os.path.exists(in_path): # Kiruvchi faylni tozalash
                 try: os.remove(in_path)
                 except: pass
@@ -977,7 +979,15 @@ async def main():
                 try: os.remove(out_path)
                 except: pass
 
+    @dp.message()
+    async def handle_unknown(m: Message, lang: str):
+        """Hech qaysi handlerga tushmagan xabarlarni tutib qolish."""
+        await m.answer(t(lang, "menu"), reply_markup=kb_main(lang))
+
     if not cfg.webhook_url:
+        # Polling boshlashdan oldin eski webhookni o'chiramiz va kutilayotgan xabarlarni tashlab yuboramiz
+        # Bu ConflictError xatosini kamaytirishga yordam beradi
+        await bot.delete_webhook(drop_pending_updates=True)
         logger.info("Starting polling...")
         await dp.start_polling(bot)
     else:
