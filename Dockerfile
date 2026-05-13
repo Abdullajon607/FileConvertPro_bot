@@ -1,22 +1,23 @@
-# Python base image
 FROM python:3.11-slim
 
-# Tizim dasturlarini o'rnatish (Ghostscript, LibreOffice, Tesseract)
+# Tizim paketlarini o'rnatish (LibreOffice, Ghostscript va Tesseract OCR uchun)
 RUN apt-get update && apt-get install -y \
-    ghostscript \
     libreoffice \
+    ghostscript \
     tesseract-ocr \
-    libmagic1 \
+    tesseract-ocr-uzb \
+    tesseract-ocr-rus \
+    tesseract-ocr-eng \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Ishchi papkani sozlash
 WORKDIR /app
 
-# Kutubxonalarni nusxalash va o'rnatish
+# Kutubxonalarni o'rnatish
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Loyihaning barcha fayllarini nusxalash
+# Loyiha fayllarini nusxalash
 COPY . .
 
 # Botni ishga tushirish
