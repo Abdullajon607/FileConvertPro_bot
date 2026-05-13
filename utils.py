@@ -1,6 +1,7 @@
 import os
 import re
 import uuid
+import html
 import logging
 from datetime import datetime, timezone
 import asyncio
@@ -10,16 +11,26 @@ class TelegramLogHandler(logging.Handler):
         super().__init__(level)
         self.bot = bot
         self.chat_id = chat_id
-        self.loop = asyncio.get_event_loop()
+        try:
+            self.loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self.loop = asyncio.get_event_loop()
 
     def emit(self, record):
         try:
             message = self.format(record)
-            # Asinxron funksiyani sinxron kontekstdan chaqirish
-            asyncio.run_coroutine_threadsafe(
-                self.bot.send_message(self.chat_id, f"```\n{message}\n```", parse_mode="MarkdownV2"),
-                self.loop
-            )
+            # Telegram xabari 4096 belgidan oshmasligi kerak
+            if len(message) > 4000:
+                message = message[:4000] + "..."
+            
+            # HTML formatlash xavfsizroq va MarkdownV2 dagi escape muammolaridan xoli
+            safe_message = f"<b>⚠️ Tizim Logi:</b>\n<pre>{html.escape(message)}</pre>"
+            
+            if self.loop and self.loop.is_running():
+                asyncio.run_coroutine_threadsafe(
+                    self.bot.send_message(self.chat_id, safe_message, parse_mode="HTML"),
+                    self.loop
+                )
         except Exception:
             self.handleError(record)
 

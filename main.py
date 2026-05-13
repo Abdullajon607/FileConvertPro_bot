@@ -25,7 +25,7 @@ from keyboards import (
 )
 from i18n import t, get_all
 from utils import (
-    setup_logger, ensure_dir, week_str_local,
+    setup_logger, TelegramLogHandler, ensure_dir, week_str_local,
     utcnow, iso, from_iso, rand_name, safe_ext,
     size_ok, human_err, is_url
 )
@@ -239,6 +239,7 @@ async def main():
             out = latin_to_cyr(text)
             
         await m.answer(out, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙", callback_data="menu:back")]]))
+        await state.clear() # Transliteratsiya tugagandan so'ng holatni tozalash
 
         if not prem:
             await mark_used(uid, "translit")
@@ -581,18 +582,30 @@ async def main():
             
         await state.update_data(accumulated_text=accumulated)
         await state.set_state(ConvertFlow.awaiting_text_confirmation)
-        
-        # Oldingi tasdiqlash xabari bo'lsa o'chirish
-        old_msg = data.get("conf_msg_id")
-        if old_msg:
-            try: await m.bot.delete_message(m.chat.id, old_msg)
-            except: pass
+
+        text_to_send = t(lang, "text_received_confirm") + f"\n\n" + t(lang, "current_text_length", length=len(accumulated))
+        reply_markup = kb_text_confirmation(lang)
+
+        conf_msg_id = data.get("conf_msg_id")
+        if conf_msg_id:
+            try:
+                # Mavjud tasdiqlash xabarini tahrirlash
+                msg = await m.bot.edit_message_text(
+                    chat_id=m.chat.id,
+                    message_id=conf_msg_id,
+                    text=text_to_send,
+                    reply_markup=reply_markup
+                )
+            except Exception:
+                # Agar tahrirlash muvaffaqiyatsiz bo'lsa (masalan, xabar topilmasa), yangi xabar yuborish
+                msg = await m.answer(text_to_send, reply_markup=reply_markup)
+        else:
+            msg = await m.answer(text_to_send, reply_markup=reply_markup)
             
-        msg = await m.answer(
-            t(lang, "text_received_confirm") + f"\n\n" + t(lang, "current_text_length", length=len(accumulated)),
-            reply_markup=kb_text_confirmation(lang)
-        )
         await state.update_data(conf_msg_id=msg.message_id)
+        # Foydalanuvchining kiritgan xabarini o'chirish
+        try: await m.delete()
+        except Exception: pass
 
     @dp.callback_query(F.data == "text_convert:confirm")
     async def confirm_text_conversion(c: CallbackQuery, state: FSMContext):
@@ -636,12 +649,12 @@ async def main():
             logger.error(f"Text conversion error: {e}")
             await c.message.answer(f"⚠️ Xatolik: {human_err(e)}")
         finally:
-            if out_path and os.path.exists(out_path):
-                try: os.remove(out_path)
+            # c.message allaqachon "processing" xabariga tahrirlangan, uni o'chirish
+            try: await c.message.delete()
+            except Exception: pass
+            if out_path and os.path.exists(out_path): # Natija faylini tozalash
                 except: pass
             await state.clear()
-            try: await c.message.delete()
-            except: pass
 
     @dp.callback_query(F.data == "text_convert:cancel")
     async def cancel_text_input(c: CallbackQuery, state: FSMContext, lang: str):
@@ -673,14 +686,29 @@ async def main():
             images.append(in_path)
             await state.update_data(images=images)
             count = len(images)
-            prev_msg = data.get("img_msg_id")
             
-        if prev_msg:
-            try: await m.bot.delete_message(m.chat.id, prev_msg)
-            except: pass
-            
-        msg = await m.answer(t(lang, "img_received", count=count), reply_markup=kb_finish_images(lang))
-        await state.update_data(img_msg_id=msg.message_id)
+            text_to_send = t(lang, "img_received", count=count)
+            reply_markup = kb_finish_images(lang)
+
+            img_msg_id = data.get("img_msg_id")
+            if img_msg_id:
+                try:
+                    # Mavjud xabarni tahrirlash
+                    msg = await m.bot.edit_message_text(
+                        chat_id=m.chat.id,
+                        message_id=img_msg_id,
+                        text=text_to_send,
+                        reply_markup=reply_markup
+                    )
+                except Exception:
+                    # Agar tahrirlash muvaffaqiyatsiz bo'lsa, yangi xabar yuborish
+                    msg = await m.answer(text_to_send, reply_markup=reply_markup)
+            else:
+                msg = await m.answer(text_to_send, reply_markup=reply_markup)
+            await state.update_data(img_msg_id=msg.message_id)
+            # Foydalanuvchining kiritgan rasm xabarini o'chirish
+            try: await m.delete()
+            except Exception: pass
 
     @dp.callback_query(F.data == "do:img2docx_finish")
     async def do_img_finish(c: CallbackQuery, state: FSMContext, lang: str):
@@ -708,11 +736,10 @@ async def main():
             if not prem:
                 await mark_used(uid, "convert")
         except Exception as e:
-            logger.info(f"file error: {human_err(e)}")
+            logger.error(f"file error: {human_err(e)}", exc_info=True) # Xatolikni to'liqroq qayd qilish
             await c.message.answer(f"⚠️ Xatolik: {human_err(e)}")
         finally:
-            try:
-                await c.message.delete()
+            try: await c.message.delete() # "processing" xabarini o'chirish
             except Exception: pass
             if out_path and os.path.exists(out_path):
                 try: os.remove(out_path)
@@ -904,13 +931,12 @@ async def main():
             logger.error(f"file error: {e}", exc_info=True)
             await m.answer(t(lang, "err_generic"))
         finally:
-            try:
-                await proc_msg.delete()
+            try: await proc_msg.delete() # "processing" xabarini o'chirish
             except Exception: pass
-            if 'in_path' in locals() and in_path and os.path.exists(in_path):
+            if in_path and os.path.exists(in_path): # Kiruvchi faylni tozalash
                 try: os.remove(in_path)
                 except: pass
-            if 'out_path' in locals() and out_path and os.path.exists(out_path):
+            if out_path and os.path.exists(out_path): # Natija faylini tozalash
                 try: os.remove(out_path)
                 except: pass
 
