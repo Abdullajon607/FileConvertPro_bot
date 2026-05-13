@@ -65,7 +65,7 @@ def load_config() -> Config:
         price_ocr_1=int(os.getenv("PRICE_OCR_1", "9000")),
         price_ocr_10=int(os.getenv("PRICE_OCR_10", "69000")),
 
-        max_file_mb=int(os.getenv("MAX_FILE_MB", "50")),
+        max_file_mb=int(os.getenv("MAX_FILE_MB", "200")),
         tmp_dir=os.getenv("TMP_DIR", "./tmp"),
         log_dir=os.getenv("LOG_DIR", "./logs"),
         db_path=os.getenv("DB_PATH", "./bot.db"),

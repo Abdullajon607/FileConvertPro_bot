@@ -11,8 +11,18 @@ def compress_pdf(gs_path: str, input_path: str, output_path: str):
         gs_path = "gs" 
         
     cmd = [
-        gs_path, "-sDEVICE=pdfwrite", "-dCompatibilityLevel=1.4",
-        "-dPDFSETTINGS=/ebook", "-dNOPAUSE", "-dQUIET", "-dBATCH",
+        gs_path,
+        "-sDEVICE=pdfwrite",
+        "-dCompatibilityLevel=1.4",
+        "-dPDFSETTINGS=/ebook",  # 150 dpi - sifat va hajm o'rtasidagi ideal balans
+        "-dColorImageDownsampleType=/Bicubic",
+        "-dColorImageResolution=150",
+        "-dGrayImageDownsampleType=/Bicubic",
+        "-dGrayImageResolution=150",
+        "-dMonoImageDownsampleType=/Bicubic",
+        "-dMonoImageResolution=150",
+        "-dOptimize=true",
+        "-dNOPAUSE", "-dQUIET", "-dBATCH",
         f"-sOutputFile={output_path}", input_path
     ]
     subprocess.check_call(cmd)
@@ -33,9 +43,15 @@ def compress_office_file(input_path: str, output_path: str):
                 img_path = os.path.join(root, file)
                 try:
                     with Image.open(img_path) as img:
+                        # Agar rasm juda katta bo'lsa, uni o'lchamini optimallashtiramiz
+                        if img.width > 1600 or img.height > 1600:
+                            img.thumbnail((1600, 1600), Image.LANCZOS)
+
                         if img.mode in ("RGBA", "P"):
                             img = img.convert("RGB")
-                        img.save(img_path, "JPEG", quality=60, optimize=True)
+
+                        # Sifatni saqlagan holda MB dan KB ga tushirish uchun eng samarali sozlamalar
+                        img.save(img_path, "JPEG", quality=50, optimize=True, progressive=True)
                 except Exception:
                     continue
 

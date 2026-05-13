@@ -630,6 +630,9 @@ async def main():
         prem, _ = await is_premium(uid)
 
         in_path, kind = await get_file_from_message(m)
+        if kind == "too_big":
+            await m.answer(t(lang, "too_big", mb=cfg.max_file_mb))
+            return
         if not in_path:
             await m.answer(t(lang, "bad_input"))
             return
@@ -649,9 +652,15 @@ async def main():
         try:
             out_path = await run_heavy(uid, job)
             # Siqilganlik darajasini ko'rsatish
-            old_sz = os.path.getsize(in_path) / (1024*1024)
-            new_sz = os.path.getsize(out_path) / (1024*1024)
-            caption = t(lang, "done") + f"\n📉 {old_sz:.1f}MB ➡️ {new_sz:.1f}MB"
+            old_bytes = os.path.getsize(in_path)
+            new_bytes = os.path.getsize(out_path)
+
+            def format_size(b: int) -> str:
+                if b < 1024 * 1024:
+                    return f"{b/1024:.1f}KB"
+                return f"{b/(1024*1024):.1f}MB"
+
+            caption = t(lang, "done") + f"\n📉 {format_size(old_bytes)} ➡️ {format_size(new_bytes)}"
             
             await m.answer_document(_sendable(out_path), caption=caption, parse_mode="HTML")
             await m.answer(t(lang, "menu"), reply_markup=kb_main(lang))
