@@ -36,6 +36,12 @@ class Config:
     tmp_dir: str
     log_dir: str
     db_path: str
+    redis_url: str
+    
+    webhook_url: str
+    webapp_host: str
+    webapp_port: int
+    admin_log_channel_id: int | None
 
     libreoffice_path: str
     tesseract_path: str
@@ -69,6 +75,12 @@ def load_config() -> Config:
         tmp_dir=os.getenv("TMP_DIR", "./tmp"),
         log_dir=os.getenv("LOG_DIR", "./logs"),
         db_path=os.getenv("DB_PATH", "./bot.db"),
+        redis_url=os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+        
+        webhook_url=os.getenv("WEBHOOK_URL", "").strip(), # Masalan: https://domain.com/webhook
+        webapp_host=os.getenv("WEBAPP_HOST", "0.0.0.0").strip(),
+        webapp_port=int(os.getenv("WEBAPP_PORT", "8080")),
+        admin_log_channel_id=int(os.getenv("ADMIN_LOG_CHANNEL_ID")) if os.getenv("ADMIN_LOG_CHANNEL_ID") else None,
 
         libreoffice_path=os.getenv("LIBREOFFICE_PATH", "").strip(),
         tesseract_path=os.getenv("TESSERACT_PATH", "").strip(),

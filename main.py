@@ -1,5 +1,6 @@
 import os
 import asyncio
+from aiohttp import web
 import aiohttp
 import time
 import re
@@ -9,15 +10,17 @@ from datetime import timedelta
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, CallbackQuery, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import CommandStart, Command, StateFilter
-from aiogram.fsm.context import FSMContext
+from aiogram.fsm.storage.redis import RedisStorage
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
 from config import load_config
 from db import DB
-from states import LangFlow, ConvertFlow, ImgConvertFlow, TranslitFlow, PaymentFlow, ContactAdminFlow, CompressFlow
+from states import LangFlow, ConvertFlow, ImgConvertFlow, TranslitFlow, PaymentFlow, ContactAdminFlow, CompressFlow, AdminFlow
+from middlewares import LanguageMiddleware
 from keyboards import (
     kb_lang, kb_main, kb_pay_kind,
     kb_premium_plans, kb_admin_payment, kb_finish_images,
-    kb_text_confirmation
+    kb_text_confirmation, kb_admin_main, kb_ocr_lang, 
 )
 from i18n import t, get_all
 from utils import (
@@ -25,9 +28,9 @@ from utils import (
     utcnow, iso, from_iso, rand_name, safe_ext,
     size_ok, human_err, is_url
 )
-
 from services.translit import latin_to_cyr, cyr_to_latin
 from services.convert import pdf_to_docx, docx_to_pdf, text_to_docx, text_to_pptx, images_to_docx_embed
+from services.ocr import configure_tesseract, ocr_image
 from services.compress import compress_pdf, compress_office_file
 
 
@@ -138,56 +141,34 @@ async def main():
     ensure_dir(cfg.tmp_dir)
     ensure_dir(cfg.log_dir)
     asyncio.create_task(cleanup_tmp_files(cfg.tmp_dir))
+    configure_tesseract(cfg.tesseract_path) # Tesseractni konfiguratsiya qilish
     await db.init()
 
     bot = Bot(cfg.token)
-    dp = Dispatcher()
+    storage = RedisStorage.from_url(cfg.redis_url)
+    dp = Dispatcher(storage=storage)
+
+    if cfg.admin_log_channel_id:
+        logger.addHandler(TelegramLogHandler(bot, cfg.admin_log_channel_id))
+
+    dp.message.middleware(LanguageMiddleware(db))
+    dp.callback_query.middleware(LanguageMiddleware(db))
 
     @dp.message(CommandStart())
-    async def start(m: Message, state: FSMContext):
-        await db.ensure_user(m.from_user.id)
+    async def start(m: Message, state: FSMContext, lang: str):
         await state.set_state(LangFlow.choosing)
         await m.answer(t("uz", "choose_lang"), reply_markup=kb_lang())
 
-    @dp.message(Command("give_premium"))
-    async def cmd_give_premium(m: Message):
+    @dp.message(Command("admin"))
+    async def cmd_admin_panel(m: Message, state: FSMContext, lang: str):
         if m.from_user.id not in cfg.admin_ids:
+            await m.answer(t(lang, "admin_only"))
             return
-            
-        parts = m.text.split()
-        if len(parts) < 3:
-            await m.answer("⚠️ Format: /give_premium <user_id> <kun_soni>\nMasalan: /give_premium 6907296588 365")
-            return
-        
-        try:
-            target_id = int(parts[1])
-            days = int(parts[2])
-        except ValueError:
-            await m.answer("❌ Xato! user_id va kun soni faqat raqamlardan iborat bo'lishi kerak.")
-            return
-            
-        await db.ensure_user(target_id)
-        old = await db.get_premium_until(target_id)
-        base = utcnow()
-        if old:
-            old_dt = from_iso(old)
-            if old_dt > base:
-                base = old_dt
-        new_until = base + timedelta(days=days)
-        await db.set_premium_until(target_id, iso(new_until))
-        
-        await m.answer(f"✅ {target_id} idli foydalanuvchiga {days} kunlik premium berildi.\n⏰ Tugash vaqti: {iso(new_until)}")
-        
-        try:
-            user_lang = await db.get_lang(target_id)
-            nice_date = new_until.strftime("%d.%m.%Y %H:%M")
-            await m.bot.send_message(target_id, t(user_lang, "approved_user", days=days, date=nice_date), parse_mode="HTML")
-        except Exception:
-            pass
+        await state.set_state(AdminFlow.main)
+        await m.answer(t(lang, "admin_panel_title"), reply_markup=kb_admin_main(lang))
 
     @dp.callback_query(F.data.startswith("lang:"))
-    async def set_lang(c: CallbackQuery, state: FSMContext):
-        lang = c.data.split(":", 1)[1]
+    async def set_lang(c: CallbackQuery, state: FSMContext, lang: str):
         await db.ensure_user(c.from_user.id)
         await db.set_lang(c.from_user.id, lang)
         await state.clear()
@@ -195,9 +176,8 @@ async def main():
         await c.message.answer(t(lang, "menu"), reply_markup=kb_main(lang))
         await c.answer()
 
-    @dp.callback_query(F.data == "menu:back")
-    async def back_menu(c: CallbackQuery, state: FSMContext):
-        lang = await db.get_lang(c.from_user.id)
+    @dp.callback_query(F.data == "menu:back") # Bu callback har doim ishlaydi, shuning uchun lang argumenti kerak
+    async def back_menu(c: CallbackQuery, state: FSMContext, lang: str):
         await state.clear()
         await c.message.delete()
         await c.message.answer(t(lang, "menu"), reply_markup=kb_main(lang))
@@ -205,8 +185,7 @@ async def main():
 
     # ---------------- CONTACT ADMIN ----------------
     @dp.message(F.text.in_(get_all("contact_admin")))
-    async def menu_contact_admin(m: Message, state: FSMContext):
-        lang = await db.get_lang(m.from_user.id)
+    async def menu_contact_admin(m: Message, state: FSMContext, lang: str):
         await state.clear()
         await state.set_state(ContactAdminFlow.awaiting_message)
         await m.answer(
@@ -215,9 +194,8 @@ async def main():
         )
 
     @dp.message(ContactAdminFlow.awaiting_message)
-    async def admin_message_received(m: Message, state: FSMContext):
-        uid = m.from_user.id
-        lang = await db.get_lang(uid)
+    async def admin_message_received(m: Message, state: FSMContext, lang: str):
+        uid = m.from_user.id # Middleware langni olib beradi, lekin uidni o'zimiz olamiz
         info_text = f"📩 <b>Yangi murojaat!</b>\n👤 Kimdan: <a href='tg://user?id={uid}'>{html.escape(m.from_user.full_name)}</a>\n🆔 ID: <code>{uid}</code>"
         for admin_id in cfg.admin_ids:
             try:
@@ -229,9 +207,8 @@ async def main():
         await state.clear()
 
     # ---------------- TRANSLIT ----------------
-    @dp.message(F.text.in_(get_all("translit")))
-    async def menu_translit(m: Message, state: FSMContext):
-        lang = await db.get_lang(m.from_user.id)
+    @dp.message(F.text.in_(get_all("translit"))) # lang argumentini qo'shish
+    async def menu_translit(m: Message, state: FSMContext, lang: str):
         await state.clear()
         await state.set_state(TranslitFlow.awaiting_text)
         await m.answer(
@@ -240,9 +217,8 @@ async def main():
         )
 
     @dp.message(TranslitFlow.awaiting_text)
-    async def tr_do(m: Message, state: FSMContext):
-        uid = m.from_user.id
-        lang = await db.get_lang(uid)
+    async def tr_do(m: Message, state: FSMContext, lang: str):
+        uid = m.from_user.id # Middleware langni olib beradi, lekin uidni o'zimiz olamiz
         prem, _ = await is_premium(uid)
 
         if not prem and not await can_free(uid, "translit"):
@@ -267,24 +243,21 @@ async def main():
             await mark_used(uid, "translit")
 
     # ---------------- PAYMENTS ----------------
-    @dp.message(F.text.in_(get_all("pay")))
-    async def menu_pay(m: Message, state: FSMContext):
-        lang = await db.get_lang(m.from_user.id)
+    @dp.message(F.text.in_(get_all("pay"))) # lang argumentini qo'shish
+    async def menu_pay(m: Message, state: FSMContext, lang: str):
         await state.clear()
         await state.set_state(PaymentFlow.choosing_kind)
         await m.answer(t(lang, "pay_choose"), reply_markup=kb_pay_kind(lang))
 
-    @dp.callback_query(F.data == "pay:back")
-    async def pay_back(c: CallbackQuery, state: FSMContext):
-        lang = await db.get_lang(c.from_user.id)
+    @dp.callback_query(F.data == "pay:back") # lang argumentini qo'shish
+    async def pay_back(c: CallbackQuery, state: FSMContext, lang: str):
         await state.set_state(PaymentFlow.choosing_kind)
         await c.message.delete()
         await c.message.answer(t(lang, "pay_choose"), reply_markup=kb_pay_kind(lang))
         await c.answer()
 
     @dp.callback_query(F.data == "pay:kind:premium")
-    async def pay_kind_premium(c: CallbackQuery, state: FSMContext):
-        lang = await db.get_lang(c.from_user.id)
+    async def pay_kind_premium(c: CallbackQuery, state: FSMContext, lang: str):
         await state.set_state(PaymentFlow.choosing_plan)
         await c.message.delete()
         await c.message.answer(
@@ -295,8 +268,7 @@ async def main():
 
 
     @dp.callback_query(F.data.startswith("pay:premium:"))
-    async def pay_premium_choose(c: CallbackQuery, state: FSMContext):
-        lang = await db.get_lang(c.from_user.id)
+    async def pay_premium_choose(c: CallbackQuery, state: FSMContext, lang: str):
         days = int(c.data.split(":")[-1])
         amount = cfg.price_1 if days == 1 else cfg.price_7 if days == 7 else cfg.price_30 if days == 30 else cfg.price_365
         pid = await db.create_payment_premium(c.from_user.id, days, amount)
@@ -309,8 +281,7 @@ async def main():
 
 
     @dp.message(PaymentFlow.awaiting_proof)
-    async def payment_proof(m: Message, state: FSMContext):
-        lang = await db.get_lang(m.from_user.id)
+    async def payment_proof(m: Message, state: FSMContext, lang: str):
         data = await state.get_data()
         pid = data.get("payment_id")
         if not pid:
@@ -358,9 +329,8 @@ async def main():
         await state.clear()
 
     @dp.callback_query(F.data.startswith("admin:"))
-    async def admin_action(c: CallbackQuery):
+    async def admin_action(c: CallbackQuery, lang: str):
         if c.from_user.id not in cfg.admin_ids:
-            lang = await db.get_lang(c.from_user.id)
             await c.answer(t(lang, "admin_only"), show_alert=True)
             return
 
@@ -402,10 +372,145 @@ async def main():
             await c.message.edit_reply_markup(reply_markup=None)
             return
 
+    @dp.callback_query(F.data == "admin_panel:view_payments")
+    async def admin_view_payments(c: CallbackQuery, state: FSMContext, lang: str):
+        if c.from_user.id not in cfg.admin_ids:
+            return await c.answer(t(lang, "admin_only"), show_alert=True)
+
+        await state.set_state(AdminFlow.viewing_payments)
+        payments = await db.get_pending_payments()
+        
+        if not payments:
+            await c.message.edit_text(t(lang, "admin_panel_title") + "\n\n" + "Hozircha kutilayotgan to'lovlar yo'q.", reply_markup=kb_admin_main(lang))
+            await c.answer()
+            return
+            
+        await c.message.edit_text(t(lang, "admin_panel_title") + "\n\n" + "Kutilayotgan to'lovlar ro'yxati:")
+        
+        for pay in payments:
+            _id, user_id, kind, plan_days, ocr_credits, amount, status, proof, created_at = pay
+            caption = (
+                f"💰 TO‘LOV (PENDING)\n"
+                f"payment_id: {_id}\n"
+                f"user_id: {user_id}\n"
+                f"kind: {kind}\n"
+                f"premium_days: {plan_days}\n"
+                f"ocr_credits: {ocr_credits}\n"
+                f"amount: {amount}\n"
+                f"created: {created_at}\n"
+            )
+            try:
+                await c.bot.send_photo(c.from_user.id, proof, caption=caption, reply_markup=kb_admin_payment(_id))
+            except Exception as e:
+                logger.error(f"Admin panel payment view error: {human_err(e)}")
+                await c.bot.send_message(c.from_user.id, f"To'lovni ko'rsatishda xatolik (ID: {_id}): {human_err(e)}")
+        await c.answer()
+
+    @dp.callback_query(F.data == "admin_panel:give_premium")
+    async def admin_premium_start(c: CallbackQuery, state: FSMContext, lang: str):
+        if c.from_user.id not in cfg.admin_ids: return
+        await state.set_state(AdminFlow.awaiting_premium_user_id)
+        await c.message.edit_text(
+            t(lang, "admin_prompt_user_id"),
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Bekor qilish", callback_data="admin_panel:main")]])
+        )
+        await c.answer()
+
+    @dp.message(AdminFlow.awaiting_premium_user_id)
+    async def admin_premium_id_received(m: Message, state: FSMContext, lang: str):
+        if m.from_user.id not in cfg.admin_ids: return
+        if not m.text or not m.text.isdigit():
+            await m.answer("❌ Iltimos, faqat raqamlardan iborat User ID yuboring.")
+            return
+        
+        await state.update_data(target_user_id=int(m.text))
+        await state.set_state(AdminFlow.awaiting_premium_days)
+        await m.answer(t(lang, "admin_prompt_days"), reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Bekor qilish", callback_data="admin_panel:main")]]))
+
+    @dp.message(AdminFlow.awaiting_premium_days)
+    async def admin_premium_days_received(m: Message, state: FSMContext, lang: str):
+        if m.from_user.id not in cfg.admin_ids: return
+        if not m.text or not m.text.isdigit():
+            await m.answer("❌ Iltimos, kunlar sonini raqamda yuboring.")
+            return
+
+        days = int(m.text)
+        data = await state.get_data()
+        target_id = data.get("target_user_id")
+
+        await db.ensure_user(target_id)
+        old = await db.get_premium_until(target_id)
+        base = utcnow()
+        if old:
+            old_dt = from_iso(old)
+            if old_dt > base:
+                base = old_dt
+        
+        new_until = base + timedelta(days=days)
+        await db.set_premium_until(target_id, iso(new_until))
+        
+        # Adminni xabardor qilish
+        await m.answer(t(lang, "admin_premium_given", user_id=target_id, days=days), parse_mode="HTML")
+        
+        # Foydalanuvchini xabardor qilish
+        try:
+            user_lang = await db.get_lang(target_id)
+            nice_date = new_until.strftime("%d.%m.%Y %H:%M")
+            await m.bot.send_message(target_id, t(user_lang, "approved_user", days=days, date=nice_date), parse_mode="HTML")
+        except Exception as e:
+            logger.info(f"Foydalanuvchiga xabar yuborib bo'lmadi: {e}")
+
+        # Panelga qaytish
+        await state.set_state(AdminFlow.main)
+        await m.answer(t(lang, "admin_panel_title"), reply_markup=kb_admin_main(lang))
+
+
+    @dp.callback_query(F.data == "admin_panel:broadcast")
+    async def admin_broadcast_start(c: CallbackQuery, state: FSMContext, lang: str):
+        if c.from_user.id not in cfg.admin_ids: return
+        
+        await state.set_state(AdminFlow.awaiting_broadcast)
+        await c.message.edit_text(
+            "📢 Hamma foydalanuvchilarga yubormoqchi bo'lgan xabaringizni yuboring (rasm, matn, video va h.k.):",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Bekor qilish", callback_data="admin_panel:main")]])
+        )
+        await c.answer()
+
+    @dp.callback_query(F.data == "admin_panel:main")
+    async def admin_panel_back(c: CallbackQuery, state: FSMContext, lang: str):
+        if c.from_user.id not in cfg.admin_ids: return
+        await state.set_state(AdminFlow.main)
+        await c.message.edit_text(t(lang, "admin_panel_title"), reply_markup=kb_admin_main(lang))
+        await c.answer()
+
+    @dp.message(AdminFlow.awaiting_broadcast)
+    async def admin_broadcast_execute(m: Message, state: FSMContext, lang: str):
+        if m.from_user.id not in cfg.admin_ids: return
+            
+        users = await db.get_all_users()
+        count = 0
+        failed = 0
+        
+        status_msg = await m.answer(f"⏳ Xabar yuborilmoqda: 0/{len(users)}...")
+        
+        for uid in users:
+            try:
+                # m.copy_to xabarning turidan qat'iy nazar (rasm, video, matn) aynan o'zini nusxalaydi
+                await m.copy_to(uid)
+                count += 1
+                if count % 20 == 0: # Har 20 ta xabarda statusni yangilab turamiz
+                    await status_msg.edit_text(f"⏳ Xabar yuborilmoqda: {count}/{len(users)}...")
+                await asyncio.sleep(0.05) # Telegram limitlariga tushib qolmaslik uchun kichik pauza
+            except Exception:
+                failed += 1
+                
+        await status_msg.edit_text(f"✅ Xabar yuborish yakunlandi.\n\n👤 Muvaffaqiyatli: {count}\n❌ Muvaffaqiyatsiz (bloklaganlar): {failed}")
+        await state.set_state(AdminFlow.main)
+        await m.answer(t(lang, "admin_panel_title"), reply_markup=kb_admin_main(lang))
+
     # ---------------- CORE FEATURES ----------------
-    @dp.message(F.text.in_(get_all("compress")))
-    async def menu_compress(m: Message, state: FSMContext):
-        lang = await db.get_lang(m.from_user.id)
+    @dp.message(F.text.in_(get_all("compress"))) # lang argumentini qo'shish
+    async def menu_compress(m: Message, state: FSMContext, lang: str):
         await state.clear()
         await state.set_state(CompressFlow.awaiting_file)
         await m.answer(
@@ -414,10 +519,9 @@ async def main():
         )
 
     action_texts = get_all("pdf2docx") + get_all("docx2pdf") + get_all("text2docx") + get_all("text2pptx") + get_all("img2docx")
-    @dp.message(F.text.in_(action_texts))
-    async def choose_action(m: Message, state: FSMContext):
-        uid = m.from_user.id
-        lang = await db.get_lang(uid)
+    @dp.message(F.text.in_(action_texts)) # lang argumentini qo'shish
+    async def choose_action(m: Message, state: FSMContext, lang: str):
+        uid = m.from_user.id # Middleware langni olib beradi, lekin uidni o'zimiz olamiz
         
         text = m.text
         if text in get_all("pdf2docx"): action = "pdf2docx"
@@ -452,9 +556,8 @@ async def main():
         await m.answer(msg_text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙", callback_data="menu:back")]]))
 
     @dp.message(StateFilter(ConvertFlow.awaiting_text, ConvertFlow.awaiting_text_confirmation))
-    async def handle_text_input(m: Message, state: FSMContext):
-        uid = m.from_user.id
-        lang = await db.get_lang(uid)
+    async def handle_text_input(m: Message, state: FSMContext, lang: str):
+        uid = m.from_user.id # Middleware langni olib beradi, lekin uidni o'zimiz olamiz
         
         # Limitni har bir xabar kelganda tekshiramiz (yomon niyatli foydalanuvchilar serverni band qilmasligi uchun)
         prem, _ = await is_premium(uid)
@@ -501,16 +604,16 @@ async def main():
             await state.clear()
             return
             
+        out_path = None
         data = await state.get_data()
         action = data.get("action")
         final_text = data.get("accumulated_text", "").strip()
-        
+
         if not final_text:
-            await c.answer(t(lang, "send_text"), show_alert=True)
-            return
-            
+            return await c.answer(t(lang, "send_text"), show_alert=True)
+
         await c.message.edit_text(t(lang, "processing"))
-        
+
         async def job():
             if action == "text2docx":
                 out = os.path.join(cfg.tmp_dir, rand_name("Hujjat", "docx"))
@@ -521,8 +624,7 @@ async def main():
                 await asyncio.to_thread(text_to_pptx, final_text, out, "Generated Slides")
                 return out
             raise RuntimeError("Noma'lum amal")
-            
-        out_path = None
+
         try:
             out_path = await run_heavy(uid, job)
             await c.message.answer_document(_sendable(out_path), caption=t(lang, "done"), parse_mode="HTML", request_timeout=300)
@@ -541,16 +643,14 @@ async def main():
             except: pass
 
     @dp.callback_query(F.data == "text_convert:cancel")
-    async def cancel_text_input(c: CallbackQuery, state: FSMContext):
-        lang = await db.get_lang(c.from_user.id)
+    async def cancel_text_input(c: CallbackQuery, state: FSMContext, lang: str):
         await c.message.edit_text(t(lang, "text_input_cancelled"))
         await c.message.answer(t(lang, "menu"), reply_markup=kb_main(lang))
         await state.clear()
         await c.answer()
     @dp.message(ImgConvertFlow.awaiting_image)
-    async def do_img_upload(m: Message, state: FSMContext):
-        uid = m.from_user.id
-        lang = await db.get_lang(uid)
+    async def do_img_upload(m: Message, state: FSMContext, lang: str):
+        uid = m.from_user.id # Middleware langni olib beradi, lekin uidni o'zimiz olamiz
         
         in_path, kind = await get_file_from_message(m)
         if kind == "too_big":
@@ -582,18 +682,17 @@ async def main():
         await state.update_data(img_msg_id=msg.message_id)
 
     @dp.callback_query(F.data == "do:img2docx_finish")
-    async def do_img_finish(c: CallbackQuery, state: FSMContext):
-        uid = c.from_user.id
-        lang = await db.get_lang(uid)
+    async def do_img_finish(c: CallbackQuery, state: FSMContext, lang: str):
+        uid = c.from_user.id # Middleware langni olib beradi, lekin uidni o'zimiz olamiz
+        out_path = None
         prem, _ = await is_premium(uid)
         
         data = await state.get_data()
         images = data.get("images", [])
         
         if not images:
-            await c.answer("Rasm yubormadingiz!", show_alert=True)
-            return
-            
+            return await c.answer("Rasm yubormadingiz!", show_alert=True)
+
         await c.message.edit_text(t(lang, "processing"))
         
         async def job():
@@ -614,7 +713,7 @@ async def main():
             try:
                 await c.message.delete()
             except Exception: pass
-            if 'out_path' in locals() and out_path and os.path.exists(out_path):
+            if out_path and os.path.exists(out_path):
                 try: os.remove(out_path)
                 except: pass
             for img in images:
@@ -624,9 +723,8 @@ async def main():
             await state.clear()
 
     @dp.message(CompressFlow.awaiting_file)
-    async def do_compress(m: Message, state: FSMContext):
-        uid = m.from_user.id
-        lang = await db.get_lang(uid)
+    async def do_compress(m: Message, state: FSMContext, lang: str):
+        uid = m.from_user.id # Middleware langni olib beradi, lekin uidni o'zimiz olamiz
         prem, _ = await is_premium(uid)
 
         in_path, kind = await get_file_from_message(m)
@@ -637,6 +735,7 @@ async def main():
             await m.answer(t(lang, "bad_input"))
             return
 
+        out_path = None
         proc_msg = await m.answer(t(lang, "processing"))
         ext = os.path.splitext(in_path)[1].lower()
 
@@ -672,14 +771,86 @@ async def main():
         finally:
             await proc_msg.delete()
             if os.path.exists(in_path): os.remove(in_path)
-            if 'out_path' in locals() and out_path and os.path.exists(out_path):
+            if out_path and os.path.exists(out_path):
                 os.remove(out_path)
             await state.clear()
 
+    # ---------------- OCR ----------------
+    @dp.message(F.text.in_(get_all("ocr_menu")))
+    async def menu_ocr(m: Message, state: FSMContext, lang: str):
+        uid = m.from_user.id # Middleware langni olib beradi, lekin uidni o'zimiz olamiz
+        
+        # Premium tekshiruvi
+        prem, _ = await is_premium(uid)
+        if not prem:
+            credits = await db.get_ocr_credits(uid)
+            if credits <= 0:
+                await m.answer(t(lang, "ocr_no_credits"))
+                return
+        
+        await state.clear()
+        await state.set_state(OcrFlow.awaiting_image)
+        await m.answer(
+            t(lang, "send_ocr_image"),
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙", callback_data="menu:back")]])
+        )
+
+    @dp.message(OcrFlow.awaiting_image)
+    async def do_ocr_image(m: Message, state: FSMContext, lang: str):
+        uid = m.from_user.id # Middleware langni olib beradi, lekin uidni o'zimiz olamiz
+
+        in_path, kind = await get_file_from_message(m)
+        if kind == "too_big":
+            await m.answer(t(lang, "too_big", mb=cfg.max_file_mb))
+            return
+        if not in_path:
+            await m.answer(t(lang, "bad_input"))
+            return
+            
+        ext = os.path.splitext(in_path)[1].lower()
+        if ext not in (".jpg", ".jpeg", ".png", ".webp", ".bmp"):
+            await m.answer(t(lang, "err_not_image"))
+            if os.path.exists(in_path): os.remove(in_path)
+            return
+
+        await state.update_data(ocr_image_path=in_path)
+        await state.set_state(OcrFlow.choosing_lang)
+        await m.answer(t(lang, "ocr_choose_lang"), reply_markup=kb_ocr_lang())
+
+    @dp.callback_query(F.data.startswith("ocr_lang:"))
+    async def do_ocr_lang_choice(c: CallbackQuery, state: FSMContext, lang: str):
+        uid = c.from_user.id # Middleware langni olib beradi, lekin uidni o'zimiz olamiz
+        ocr_lang = c.data.split(":", 1)[1]
+
+        data = await state.get_data()
+        image_path = data.get("ocr_image_path")
+        if not image_path or not os.path.exists(image_path):
+            await c.message.edit_text("Xatolik: Rasm topilmadi. Qayta urinib ko'ring.")
+            await state.clear()
+            return
+
+        prem, _ = await is_premium(uid)
+        if not prem and not await db.consume_ocr_credit(uid):
+            await c.message.edit_text(t(lang, "ocr_no_credits"))
+            await state.clear()
+            if os.path.exists(image_path): os.remove(image_path)
+            return
+
+        await c.message.edit_text(t(lang, "ocr_processing"))
+        try:
+            result_text = await asyncio.to_thread(ocr_image, image_path, ocr_lang)
+            await c.message.answer(f"<b>{t(lang, 'ocr_result')}</b>\n\n{html.escape(result_text)}", parse_mode="HTML")
+        except Exception as e:
+            logger.error(f"OCR error: {e}")
+            await c.message.answer(t(lang, "err_generic"))
+        finally:
+            if os.path.exists(image_path): os.remove(image_path)
+            await state.clear()
+            await c.message.answer(t(lang, "menu"), reply_markup=kb_main(lang))
+
     @dp.message(ConvertFlow.awaiting_file)
-    async def do_file(m: Message, state: FSMContext):
-        uid = m.from_user.id
-        lang = await db.get_lang(uid)
+    async def do_file(m: Message, state: FSMContext, lang: str):
+        uid = m.from_user.id # Middleware langni olib beradi, lekin uidni o'zimiz olamiz
         prem, _ = await is_premium(uid)
 
         if not prem and not await can_free(uid, "convert"):
@@ -702,14 +873,14 @@ async def main():
         async def job():
             if action == "pdf2docx":
                 if ext != ".pdf":
-                    raise RuntimeError("PDF yuboring.")
+                    raise ValueError("err_not_pdf")
                 out = os.path.join(cfg.tmp_dir, rand_name("Fayl", "docx"))
                 await asyncio.to_thread(pdf_to_docx, in_path, out)
                 return out
 
             if action == "docx2pdf":
                 if ext != ".docx":
-                    raise RuntimeError("DOCX yuboring.")
+                    raise ValueError("err_not_docx")
                 # Linuxda soffice odatda /usr/bin/soffice da bo'ladi
                 lo_path = cfg.libreoffice_path or "/usr/bin/soffice"
                 if not os.path.exists(lo_path):
@@ -724,9 +895,13 @@ async def main():
             await m.answer(t(lang, "menu"), reply_markup=kb_main(lang))
             if not prem:
                 await mark_used(uid, "convert")
+        except ValueError as ve:
+            # Biz bilgan xatoliklar (til kalitlari orqali yuboriladi)
+            err_key = str(ve)
+            await m.answer(t(lang, err_key))
         except Exception as e:
-            logger.info(f"file error: {human_err(e)}")
-            await m.answer(f"⚠️ Xatolik: {human_err(e)}")
+            logger.error(f"file error: {e}", exc_info=True)
+            await m.answer(t(lang, "err_generic"))
         finally:
             try:
                 await proc_msg.delete()
@@ -738,8 +913,25 @@ async def main():
                 try: os.remove(out_path)
                 except: pass
 
-
-    await dp.start_polling(bot)
+    if not cfg.webhook_url:
+        logger.info("Starting polling...")
+        await dp.start_polling(bot)
+    else:
+        logger.info(f"Starting webhook on {cfg.webhook_url}...")
+        await bot.set_webhook(cfg.webhook_url)
+        
+        app = web.Application()
+        # Webhook pathini URL dan ajratib olamiz (masalan, /webhook)
+        webhook_path = "/" + cfg.webhook_url.split("/")[-1]
+        SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=webhook_path)
+        setup_application(app, dp, bot=bot)
+        
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, host=cfg.webapp_host, port=cfg.webapp_port)
+        await site.start()
+        # Bot ishlab turishi uchun cheksiz kutish
+        await asyncio.Event().wait()
 
 if __name__ == "__main__":
     asyncio.run(main())

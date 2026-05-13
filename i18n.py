@@ -14,6 +14,7 @@ TEXT: Dict[str, Dict[str, str]] = {
     "img2docx":"🖼 Rasm ➡️ DOCX",
     "compress":"🗜 Hajmni siqish (MB)",
 
+    "ocr_menu": "👁️ Rasmdagi matnni o'qish (OCR)",
     "translit":"🔤 Kiril ↔️ Lotin",
     "pay":"💎 Premium & To‘lov",
     "profile":"👤 Profil",
@@ -24,6 +25,11 @@ TEXT: Dict[str, Dict[str, str]] = {
     "send_file":"📎 Iltimos, faylni yuboring.",
     "send_text":"✍️ Iltimos, matn yuboring.",
     "send_compress_file":"📎 Siqish uchun faylni yuboring (PDF, DOCX, PPTX):",
+    "send_ocr_image":"Matnni o'qish uchun rasm yuboring:",
+    "ocr_choose_lang":"Matn qaysi tilda ekanligini tanlang:",
+    "ocr_result":"OCR natijasi:",
+    "ocr_no_credits":"OCR uchun kreditlaringiz yetarli emas. Kredit sotib oling.",
+    "ocr_processing":"Rasmdagi matn o'qilmoqda, biroz kuting...",
 
     "img_received":"🖼 {count}-rasm qabul qilindi. Yana rasm yuborishingiz mumkin.\n\nBarcha rasmlarni yuborib bo'lgan bo'lsangiz, quyidagi tugmani bosing:",
     "btn_finish_images":"✅ Word qilib berish",
@@ -55,6 +61,24 @@ TEXT: Dict[str, Dict[str, str]] = {
     "admin_only":"⛔ Admin emas.",
 
     "need_lo":"DOCX→PDF uchun LibreOffice kerak. (.env LIBREOFFICE_PATH ni to‘g‘ri qiling)",
+
+    # Admin Panel
+    "admin_panel_title": "👑 Admin Paneli",
+    "admin_view_payments": "💰 To‘lovlarni ko‘rish",
+    "admin_give_premium": "💎 Premium berish",
+    "admin_broadcast": "📢 Xabar yuborish",
+    "back_to_main_menu": "🔙 Asosiy Menyu",
+
+    "admin_prompt_user_id": "🆔 Premium bermoqchi bo'lgan foydalanuvchi ID-sini yuboring:",
+    "admin_prompt_days": "📅 Necha kunga Premium bermoqchisiz? (faqat raqam yuboring):",
+    "admin_premium_given": "✅ Foydalanuvchi <code>{user_id}</code> ga {days} kunlik Premium berildi.",
+
+    # Errors
+    "err_generic": "⚠️ Kechirasiz, kutilmagan xatolik yuz berdi. Iltimos, qayta urinib ko'ring yoki adminga murojaat qiling.",
+    "err_not_pdf": "⚠️ Iltimos, faqat PDF formatidagi fayl yuboring.",
+    "err_not_docx": "⚠️ Iltimos, faqat DOCX formatidagi fayl yuboring.",
+    "err_not_image": "⚠️ Iltimos, faqat rasm (JPG, PNG) yuboring.",
+    "err_empty_text": "⚠️ Matn topilmadi. Iltimos, matn yuboring.",
   },
   "ru": {
     "choose_lang":"Выберите язык:",
@@ -64,6 +88,7 @@ TEXT: Dict[str, Dict[str, str]] = {
     "docx2pdf":"📝 DOCX ➡️ PDF",
     "text2docx":"✍️ Текст ➡️ DOCX",
     "text2pptx":"📊 Текст ➡️ PPTX",
+    "ocr_menu": "👁️ Распознавание текста (OCR)",
     "img2docx":"🖼 Фото ➡️ DOCX",
     "compress":"🗜 Сжать размер (МБ)",
 
@@ -77,6 +102,11 @@ TEXT: Dict[str, Dict[str, str]] = {
     "send_file":"📎 Пожалуйста, отправьте файл.",
     "send_text":"✍️ Пожалуйста, отправьте текст.",
     "send_compress_file":"📎 Отправьте файл для сжатия (PDF, DOCX, PPTX):",
+    "send_ocr_image":"Отправьте изображение для распознавания текста:",
+    "ocr_choose_lang":"Выберите язык текста на изображении:",
+    "ocr_result":"Результат OCR:",
+    "ocr_no_credits":"У вас недостаточно кредитов для OCR. Приобретите кредиты.",
+    "ocr_processing":"Распознавание текста на изображении, пожалуйста, подождите...",
 
     "img_received":"🖼 {count} фото получено. Вы можете отправить еще.\n\nЕсли вы отправили все фото, нажмите кнопку ниже:",
     "btn_finish_images":"✅ Создать Word",
@@ -108,6 +138,24 @@ TEXT: Dict[str, Dict[str, str]] = {
     "admin_only":"⛔ Вы не админ.",
 
     "need_lo":"Для DOCX→PDF нужен LibreOffice. Проверьте LIBREOFFICE_PATH в .env",
+
+    # Admin Panel
+    "admin_panel_title": "👑 Панель Администратора",
+    "admin_view_payments": "💰 Просмотр платежей",
+    "admin_give_premium": "💎 Выдать Premium",
+    "admin_broadcast": "📢 Отправить сообщение",
+    "back_to_main_menu": "🔙 Главное меню",
+
+    "admin_prompt_user_id": "🆔 Отправьте ID пользователя для выдачи Premium:",
+    "admin_prompt_days": "📅 На сколько дней выдать Premium? (отправьте только число):",
+    "admin_premium_given": "✅ Пользователю <code>{user_id}</code> выдан Premium на {days} дней.",
+
+    # Errors
+    "err_generic": "⚠️ Извините, произошла непредвиденная ошибка. Пожалуйста, попробуйте еще раз или свяжитесь с админом.",
+    "err_not_pdf": "⚠️ Пожалуйста, отправьте только PDF файл.",
+    "err_not_docx": "⚠️ Пожалуйста, отправьте только DOCX файл.",
+    "err_not_image": "⚠️ Пожалуйста, отправьте только изображение (JPG, PNG).",
+    "err_empty_text": "⚠️ Текст не найден. Пожалуйста, отправьте текст.",
   },
   "en": {
     "choose_lang":"Choose language:",
@@ -117,6 +165,7 @@ TEXT: Dict[str, Dict[str, str]] = {
     "docx2pdf":"📝 DOCX ➡️ PDF",
     "text2docx":"✍️ Text ➡️ DOCX",
     "text2pptx":"📊 Text ➡️ PPTX",
+    "ocr_menu": "👁️ Image to Text (OCR)",
     "img2docx":"🖼 Image ➡️ DOCX",
     "compress":"🗜 Compress Size (MB)",
 
@@ -130,6 +179,11 @@ TEXT: Dict[str, Dict[str, str]] = {
     "send_file":"📎 Please send a file.",
     "send_text":"✍️ Please send text.",
     "send_compress_file":"📎 Send file to compress (PDF, DOCX, PPTX):",
+    "send_ocr_image":"Send an image to extract text:",
+    "ocr_choose_lang":"Choose the language of the text in the image:",
+    "ocr_result":"OCR Result:",
+    "ocr_no_credits":"You do not have enough OCR credits. Please purchase credits.",
+    "ocr_processing":"Extracting text from image, please wait...",
 
     "img_received":"🖼 {count} image(s) received. You can send more.\n\nIf you are done, click the button below:",
     "btn_finish_images":"✅ Generate Word",
@@ -161,6 +215,24 @@ TEXT: Dict[str, Dict[str, str]] = {
     "admin_only":"⛔ Not an admin.",
 
     "need_lo":"DOCX→PDF requires LibreOffice. Check LIBREOFFICE_PATH in .env",
+
+    # Admin Panel
+    "admin_panel_title": "👑 Admin Panel",
+    "admin_view_payments": "💰 View Payments",
+    "admin_give_premium": "💎 Give Premium",
+    "admin_broadcast": "📢 Broadcast Message",
+    "back_to_main_menu": "🔙 Main Menu",
+
+    "admin_prompt_user_id": "🆔 Send the User ID to grant Premium:",
+    "admin_prompt_days": "📅 For how many days? (send only a number):",
+    "admin_premium_given": "✅ Premium granted to user <code>{user_id}</code> for {days} days.",
+
+    # Errors
+    "err_generic": "⚠️ Sorry, an unexpected error occurred. Please try again or contact the admin.",
+    "err_not_pdf": "⚠️ Please send only PDF files.",
+    "err_not_docx": "⚠️ Please send only DOCX files.",
+    "err_not_image": "⚠️ Please send only images (JPG, PNG).",
+    "err_empty_text": "⚠️ Text not found. Please send some text.",
   }
 }
 

@@ -24,3 +24,14 @@ class PaymentFlow(StatesGroup):
 
 class ContactAdminFlow(StatesGroup):
     awaiting_message = State()
+
+class OcrFlow(StatesGroup):
+    awaiting_image = State()
+    choosing_lang = State()
+
+class AdminFlow(StatesGroup):
+    main = State()
+    viewing_payments = State()
+    awaiting_broadcast = State()
+    awaiting_premium_user_id = State()
+    awaiting_premium_days = State()

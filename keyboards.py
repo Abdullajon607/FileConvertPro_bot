@@ -29,6 +29,9 @@ def kb_main(lang: str):
             KeyboardButton(text=t(lang, "compress"))
         ],
         [
+            KeyboardButton(text=t(lang, "ocr_menu"))
+        ],
+        [
             KeyboardButton(text=t(lang, "contact_admin"))
         ],
     ], resize_keyboard=True)
@@ -65,4 +68,21 @@ def kb_text_confirmation(lang: str):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=t(lang, "btn_confirm_text"), callback_data="text_convert:confirm")],
         [InlineKeyboardButton(text=t(lang, "btn_cancel_text_input"), callback_data="text_convert:cancel")]
+    ])
+
+def kb_ocr_lang():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="🇺🇿 O'zbekcha", callback_data="ocr_lang:uz"),
+            InlineKeyboardButton(text="🇷🇺 Русский", callback_data="ocr_lang:ru"),
+            InlineKeyboardButton(text="🇬🇧 English", callback_data="ocr_lang:en"),
+        ],
+        [InlineKeyboardButton(text="🔙 Orqaga", callback_data="menu:back")],
+    ])
+def kb_admin_main(lang: str):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t(lang, "admin_view_payments"), callback_data="admin_panel:view_payments")],
+        [InlineKeyboardButton(text=t(lang, "admin_give_premium"), callback_data="admin_panel:give_premium")],
+        [InlineKeyboardButton(text=t(lang, "admin_broadcast"), callback_data="admin_panel:broadcast")],
+        [InlineKeyboardButton(text=t(lang, "back_to_main_menu"), callback_data="menu:back")],
     ])

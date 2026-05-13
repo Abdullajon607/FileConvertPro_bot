@@ -3,6 +3,25 @@ import re
 import uuid
 import logging
 from datetime import datetime, timezone
+import asyncio
+
+class TelegramLogHandler(logging.Handler):
+    def __init__(self, bot, chat_id, level=logging.ERROR):
+        super().__init__(level)
+        self.bot = bot
+        self.chat_id = chat_id
+        self.loop = asyncio.get_event_loop()
+
+    def emit(self, record):
+        try:
+            message = self.format(record)
+            # Asinxron funksiyani sinxron kontekstdan chaqirish
+            asyncio.run_coroutine_threadsafe(
+                self.bot.send_message(self.chat_id, f"```\n{message}\n```", parse_mode="MarkdownV2"),
+                self.loop
+            )
+        except Exception:
+            self.handleError(record)
 
 def setup_logger(log_dir: str) -> logging.Logger:
     os.makedirs(log_dir, exist_ok=True)
@@ -12,7 +31,11 @@ def setup_logger(log_dir: str) -> logging.Logger:
         fh = logging.FileHandler(os.path.join(log_dir, "bot.log"), encoding="utf-8")
         fmt = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s")
         fh.setFormatter(fmt)
+        # Console handler ham qo'shish
+        ch = logging.StreamHandler()
+        ch.setFormatter(fmt)
         logger.addHandler(fh)
+        logger.addHandler(ch)
     return logger
 
 def ensure_dir(path: str):
@@ -35,7 +58,7 @@ def week_str_local() -> str:
 def rand_name(prefix: str, ext: str) -> str:
     # Uzun UUID o'rniga qisqa va tushunarli nom: Prefiks_Vaqt_ID.kengaytma
     ts = datetime.now().strftime("%H%M%S")
-    short_id = uuid.uuid4().hex[:4]
+    short_id = uuid.uuid4().hex[:8]
     return f"{prefix}_{ts}_{short_id}.{ext}"
 
 def safe_ext(filename: str | None) -> str:

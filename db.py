@@ -185,3 +185,17 @@ class DB:
             (admin_id, iso(utcnow()), reason, payment_id)
         )
         await db.commit()
+
+    async def get_all_users(self) -> list[int]:
+        db = await self._get_conn()
+        cur = await db.execute("SELECT user_id FROM users")
+        rows = await cur.fetchall()
+        return [row[0] for row in rows]
+
+    async def get_pending_payments(self):
+        db = await self._get_conn()
+        cur = await db.execute(
+            "SELECT id, user_id, kind, plan_days, ocr_credits, amount, status, proof_file_id, created_at "
+            "FROM payments WHERE status='pending' ORDER BY created_at ASC"
+        )
+        return await cur.fetchall()
