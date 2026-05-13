@@ -10,6 +10,7 @@ from datetime import timedelta
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, CallbackQuery, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import CommandStart, Command, StateFilter
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
@@ -113,25 +114,35 @@ async def get_file_from_message(m: Message) -> tuple[str | None, str | None]:
     tmp = cfg.tmp_dir
 
     if m.document:
-        if not size_ok(m.document.file_size, cfg.max_file_mb):
+        try:
+            if not size_ok(m.document.file_size, cfg.max_file_mb):
+                return (None, "too_big")
+            ext = safe_ext(m.document.file_name).lstrip(".") or "bin"
+            p = os.path.join(tmp, rand_name("f", ext))
+            f = await m.bot.get_file(m.document.file_id, request_timeout=300)
+            await m.bot.download_file(f.file_path, p, timeout=300)
+            return (p, "file")
+        except TelegramBadRequest as e:
+            logger.warning(f"TelegramBadRequest during document download: {e}")
             return (None, "too_big")
-        ext = safe_ext(m.document.file_name).lstrip(".") or "bin"
-        p = os.path.join(tmp, rand_name("f", ext))
-        f = await m.bot.get_file(m.document.file_id, request_timeout=300)
-        await m.bot.download_file(f.file_path, p, timeout=300)
-        return (p, "file")
 
     if m.photo:
-        p = os.path.join(tmp, rand_name("f", "jpg"))
-        f = await m.bot.get_file(m.photo[-1].file_id, request_timeout=300)
-        await m.bot.download_file(f.file_path, p, timeout=300)
-        return (p, "file")
+        try:
+            # Check photo size as well
+            if not size_ok(m.photo[-1].file_size, cfg.max_file_mb):
+                return (None, "too_big")
+            p = os.path.join(tmp, rand_name("f", "jpg"))
+            f = await m.bot.get_file(m.photo[-1].file_id, request_timeout=300)
+            await m.bot.download_file(f.file_path, p, timeout=300)
+            return (p, "file")
+        except TelegramBadRequest as e:
+            logger.warning(f"TelegramBadRequest during photo download: {e}")
+            return (None, "too_big")
 
     if m.text and is_url(m.text.strip()):
         p = os.path.join(tmp, rand_name("url", "bin"))
         await download_url(m.text.strip(), p)
         return (p, "url")
-
     return (None, None)
 
 async def main():
