@@ -16,7 +16,7 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_applicati
 
 from config import load_config
 from db import DB
-from states import LangFlow, ConvertFlow, ImgConvertFlow, TranslitFlow, PaymentFlow, ContactAdminFlow, CompressFlow, AdminFlow
+from states import LangFlow, ConvertFlow, ImgConvertFlow, TranslitFlow, PaymentFlow, ContactAdminFlow, CompressFlow, AdminFlow, OcrFlow
 from middlewares import LanguageMiddleware
 from keyboards import (
     kb_lang, kb_main, kb_pay_kind,
