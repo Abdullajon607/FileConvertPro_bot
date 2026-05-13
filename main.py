@@ -10,7 +10,6 @@ from datetime import timedelta
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, CallbackQuery, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import CommandStart, Command, StateFilter
-from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.fsm.context import FSMContext
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
@@ -146,7 +145,21 @@ async def main():
     await db.init()
 
     bot = Bot(cfg.token)
-    storage = RedisStorage.from_url(cfg.redis_url)
+
+    # Redis kutubxonasi va ulanishini tekshirish, bo'lmasa MemoryStorage ga o'tish
+    try:
+        from aiogram.fsm.storage.redis import RedisStorage
+        storage = RedisStorage.from_url(cfg.redis_url)
+        logger.info("FSM: RedisStorage ishga tushdi.")
+    except (ImportError, ModuleNotFoundError):
+        from aiogram.fsm.storage.memory import MemoryStorage
+        storage = MemoryStorage()
+        logger.warning("Redis kutubxonasi topilmadi (pip install redis). MemoryStorage ishlatilmoqda.")
+    except Exception as e:
+        from aiogram.fsm.storage.memory import MemoryStorage
+        storage = MemoryStorage()
+        logger.warning(f"Redis ulanishida xatolik: {e}. MemoryStorage ishlatilmoqda.")
+
     dp = Dispatcher(storage=storage)
 
     if cfg.admin_log_channel_id:
@@ -756,6 +769,8 @@ async def main():
         uid = m.from_user.id # Middleware langni olib beradi, lekin uidni o'zimiz olamiz
         prem, _ = await is_premium(uid)
 
+        proc_msg = None
+        out_path = None
         in_path, kind = await get_file_from_message(m)
         if kind == "too_big":
             await m.answer(t(lang, "too_big", mb=cfg.max_file_mb))
@@ -764,7 +779,6 @@ async def main():
             await m.answer(t(lang, "bad_input"))
             return
 
-        out_path = None
         proc_msg = await m.answer(t(lang, "processing"))
         ext = os.path.splitext(in_path)[1].lower()
 
@@ -798,10 +812,17 @@ async def main():
             logger.error(f"Compress error: {e}")
             await m.answer(f"⚠️ Xatolik: {human_err(e)}")
         finally:
-            await proc_msg.delete()
-            if os.path.exists(in_path): os.remove(in_path)
+            if proc_msg:
+                try: await proc_msg.delete()
+                except Exception: pass
+            
+            if in_path and os.path.exists(in_path):
+                try: os.remove(in_path)
+                except Exception: pass
+                
             if out_path and os.path.exists(out_path):
-                os.remove(out_path)
+                try: os.remove(out_path)
+                except Exception: pass
             await state.clear()
 
     # ---------------- OCR ----------------
@@ -885,6 +906,7 @@ async def main():
         in_path = None
         out_path = None
 
+        proc_msg = None
         if not prem and not await can_free(uid, "convert"):
             await m.answer(t(lang, "limit_over"))
             await state.clear()

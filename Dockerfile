@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     tesseract-ocr-uzb \
     tesseract-ocr-rus \
     tesseract-ocr-eng \
+    redis-server \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -21,4 +22,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Botni ishga tushirish
-CMD ["python", "main.py"]
+CMD service redis-server start && python main.py
