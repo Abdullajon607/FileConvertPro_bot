@@ -1,10 +1,10 @@
-aiogram
-aiosqlite
+aiogram>=3.0.0
 aiohttp
+aiosqlite
 python-dotenv
 redis
 pdf2docx
 python-docx
 python-pptx
-pytesseract
 Pillow
+tesseract
