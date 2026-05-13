@@ -39,6 +39,7 @@ TEXT: Dict[str, Dict[str, str]] = {
     "bad_input":"⚠️ Fayl yuboring.",
     "too_big":"⚠️ Fayl juda katta. Limit: {mb} MB",
 
+    "telegram_file_limit_exceeded": "⚠️ Telegram Bot API cheklovi tufayli 20 MB dan katta fayllarni to'g'ridan-to'g'ri yuklab bo'lmaydi.\n\nIltimos, faylni Google Drive, Dropbox kabi xizmatlarga yuklab, uning havolasini (URL) menga yuboring.",
     "limit_over":"🔒 Bepul limit tugadi. Premium kerak.",
     "free_left":"✅ Haftasiga jami 3 ta bepul limit beriladi.",
     "premium_active":"✅ Premium faol. Tugash: {until}",
@@ -116,6 +117,7 @@ TEXT: Dict[str, Dict[str, str]] = {
     "bad_input":"⚠️ Отправьте файл.",
     "too_big":"⚠️ Файл слишком большой. Лимит: {mb} MB",
 
+    "telegram_file_limit_exceeded": "⚠️ Из-за ограничения Telegram Bot API невозможно загружать файлы размером более 20 МБ напрямую.\n\nПожалуйста, загрузите файл на такие сервисы, как Google Drive, Dropbox, и отправьте мне ссылку (URL).",
     "limit_over":"🔒 Бесплатный лимит закончился. Нужен Premium.",
     "free_left":"✅ Дается 3 бесплатных лимита в неделю.",
     "premium_active":"✅ Premium активен до: {until}",
@@ -193,6 +195,7 @@ TEXT: Dict[str, Dict[str, str]] = {
     "bad_input":"⚠️ Send a file.",
     "too_big":"⚠️ File too large. Limit: {mb} MB",
 
+    "telegram_file_limit_exceeded": "⚠️ Due to Telegram Bot API limitations, files larger than 20 MB cannot be downloaded directly.\n\nPlease upload the file to services like Google Drive, Dropbox, and send me the link (URL).",
     "limit_over":"🔒 Free limit is over. Premium required.",
     "free_left":"✅ 3 free limits per week.",
     "premium_active":"✅ Premium active until: {until}",
