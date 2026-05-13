@@ -4,7 +4,7 @@ import zipfile
 import shutil
 from PIL import Image
 
-def compress_pdf(gs_path: str, input_path: str, output_path: str):
+def compress_pdf(gs_path: str, input_path: str, output_path: str, timeout: int = 300):
     """PDF faylni Ghostscript orqali siqadi."""
     if gs_path != "gs" and not os.path.exists(gs_path):
         # Agar .env dagi yo'l xato bo'lsa, tizimdan qidirib ko'radi
@@ -25,7 +25,10 @@ def compress_pdf(gs_path: str, input_path: str, output_path: str):
         "-dNOPAUSE", "-dQUIET", "-dBATCH",
         f"-sOutputFile={output_path}", input_path
     ]
-    subprocess.check_call(cmd)
+    try:
+        subprocess.check_call(cmd, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("Siqish jarayoni juda uzoq davom etdi (Timeout).")
     return output_path
 
 def compress_office_file(input_path: str, output_path: str):
