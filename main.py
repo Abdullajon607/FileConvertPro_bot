@@ -11,6 +11,7 @@ from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, CallbackQuery, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import CommandStart, Command, StateFilter
 from aiogram.fsm.storage.redis import RedisStorage
+from aiogram.fsm.context import FSMContext
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
 from config import load_config
