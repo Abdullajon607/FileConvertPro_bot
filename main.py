@@ -124,7 +124,7 @@ async def get_file_from_message(m: Message) -> tuple[str | None, str | None]:
             return (p, "file")
         except TelegramBadRequest as e:
             logger.warning(f"TelegramBadRequest during document download: {e}")
-            return (None, "telegram_limit")
+            return (None, "telegram_limit") # Maxsus status qaytaramiz
 
     if m.photo:
         try:
@@ -696,7 +696,7 @@ async def main():
             await m.answer(t(lang, "too_big", mb=cfg.max_file_mb))
             return
         if kind == "telegram_limit":
-            await m.answer(t(lang, "telegram_file_limit_exceeded"))
+            await m.answer("⚠️ Telegram Bot API cheklovi tufayli 20 MB dan katta fayllarni yuklab bo'lmaydi.")
             return
         if not in_path:
             await m.answer(t(lang, "bad_input"))
@@ -870,6 +870,9 @@ async def main():
         if kind == "too_big":
             await m.answer(t(lang, "too_big", mb=cfg.max_file_mb))
             return
+        if kind == "telegram_limit":
+            await m.answer(t(lang, "telegram_file_limit_exceeded"))
+            return
         if not in_path:
             await m.answer(t(lang, "bad_input"))
             return
@@ -933,6 +936,9 @@ async def main():
         in_path, kind = await get_file_from_message(m)
         if kind == "too_big":
             await m.answer(t(lang, "too_big", mb=cfg.max_file_mb))
+            return
+        if kind == "telegram_limit":
+            await m.answer(t(lang, "telegram_file_limit_exceeded"))
             return
         if not in_path:
             await m.answer(t(lang, "bad_input"))

@@ -38,6 +38,7 @@ class Config:
     db_path: str
     redis_url: str
     
+    local_server_url: str | None
     webhook_url: str
     webapp_host: str
     webapp_port: int
@@ -77,6 +78,7 @@ def load_config() -> Config:
         db_path=os.getenv("DB_PATH", "./bot.db"),
         redis_url=os.getenv("REDIS_URL", "redis://localhost:6379/0"),
         
+        local_server_url=os.getenv("LOCAL_SERVER_URL", "").strip() or None,
         webhook_url=os.getenv("WEBHOOK_URL", "").strip(), # Masalan: https://domain.com/webhook
         webapp_host=os.getenv("WEBAPP_HOST", "0.0.0.0").strip(),
         webapp_port=int(os.getenv("WEBAPP_PORT", "8080")),
